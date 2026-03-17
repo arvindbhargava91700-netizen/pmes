@@ -1,0 +1,28 @@
+<IfModule mod_rewrite.c>
+
+RewriteEngine On
+
+# Prevent Direct Access to Protected Files
+<FilesMatch "(?i)(^artisan$|\.env|\.log)">
+    Require all denied
+</FilesMatch>
+
+# Prevent Direct Access To Protected Folders
+RewriteRule ^(app|bootstrap|config|database|resources|routes|storage|tests)/(.*) / [L,R=301]
+
+# Prevent Direct Access To modules/vendor Folders Except Assets
+RewriteRule ^(modules|vendor)/(.*)\.((?!ico|gif|jpg|jpeg|png|js|css|less|sass|font|woff|woff2|eot|ttf|svg).)*$ / [L,R=301]
+
+
+RewriteCond %{REQUEST_FILENAME} -d [OR]
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ ^$1 [N]
+
+RewriteCond %{REQUEST_URI} (\.\w+$) [NC]
+RewriteRule ^(.*)$ public/$1
+
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ server.php
+
+</IfModule>
