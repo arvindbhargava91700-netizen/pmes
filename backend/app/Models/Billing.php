@@ -50,4 +50,5 @@ class Billing extends Model
     $formattedNumber = str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
     return "BILL-{$year}-{$formattedNumber}";
 }
+
 }
