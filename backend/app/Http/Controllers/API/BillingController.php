@@ -15,7 +15,7 @@ class BillingController extends Controller
     {
         try {
 
-            $query = Billing::with(['project','milestone','status']);
+            $query = Billing::with(['project','status']);
 
             // filter by status
             if($request->billing_status_id){
@@ -45,9 +45,8 @@ class BillingController extends Controller
         {
 
             $validator = Validator::make($request->all(),[
-                'bill_number' => 'required|unique:billings,bill_number',
                 'project_id' => 'required|integer',
-                'milestone_id' => 'required|integer',
+                'milestone' => 'required',
                 'amount' => 'required|numeric',
                 'mb_number' => 'nullable|string',
                 'bill_date' => 'required|date',
@@ -77,6 +76,7 @@ class BillingController extends Controller
                 
                 $data = $validator->validated();
 
+                $data['bill_number'] = Billing::generateBillingCode();
                 $data['created_by'] = auth()->id();
 
                 $billing = Billing::create($data);
@@ -103,7 +103,7 @@ class BillingController extends Controller
     {
         try{
 
-            $billing = Billing::with(['project','milestone','status'])->findOrFail($id);
+            $billing = Billing::with(['project','status'])->findOrFail($id);
 
 // dd($billing);   
             return response()->json([
@@ -135,9 +135,8 @@ class BillingController extends Controller
         }
 
         $validator = Validator::make($request->all(),[
-            'bill_number' => 'required',
             'project_id' => 'required|integer',
-            'milestone_id' => 'required|integer',
+            'milestone' => 'required',
             'amount' => 'required|numeric',
             'mb_number' => 'nullable|string',
             'bill_date' => 'required|date',
