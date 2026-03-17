@@ -12,6 +12,7 @@ use App\Http\Controllers\API\GrievanceController;
 use App\Http\Controllers\API\GrievancePriorityController;
 use App\Http\Controllers\API\GrievanceStatusController;
 use App\Http\Controllers\API\IntegrationController;
+use App\Http\Controllers\API\MilestoneController;
 use App\Http\Controllers\API\ProjectFinancialController;
 use App\Http\Controllers\API\ProjectPhysicalController;
 use App\Http\Controllers\API\ProjectProgressController;
@@ -76,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('eot_request_approval', [EotRequestController::class, 'eot_request_approval']);
         Route::apiResource('billings', BillingController::class);
         Route::apiResource('billing_status', BillingStatusController::class);
+        Route::apiResource('milestones', MilestoneController::class);
         Route::apiResource('grievances', GrievanceController::class);
         Route::apiResource('grievance_status', GrievanceStatusController::class);
         Route::apiResource('grievance_priorities', GrievancePriorityController::class);
