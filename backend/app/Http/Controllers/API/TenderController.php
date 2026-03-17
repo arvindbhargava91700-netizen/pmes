@@ -95,12 +95,13 @@ class TenderController extends Controller
                         'id'             => $tender->id,
                         'tender_id'      => $tender->tender_code,
                         'title'          => $tender->title,
+                        'description'=> $tender->description,
                         'department'     => optional($tender->department)->name,
                         'estimated_cost' => $tender->estimated_cost,
                         'status'         => optional($tender->tenderStatus)->name,
                         'status_color'   => optional($tender->tenderStatus)->color,
                         'closing_date'   => optional($tender->timeline)->end_date,
-                        'bid'            => '0 bid',
+                        'bid'            => '0',
                     ];
                 }),
                 'pagination' => [

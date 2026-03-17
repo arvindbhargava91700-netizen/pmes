@@ -15,6 +15,7 @@ import {
   X,
   Info,
 } from "lucide-react";
+import api from "@/components/Api/privetApi";
 
 const page = () => {
   const [activeTab, setActiveTab] = useState("All");
@@ -23,6 +24,26 @@ const page = () => {
   //   const [openModal, setOpenModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [openSubmitModal, setOpenSubmitModal] = useState(false);
+   const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchBills();
+  }, []);
+
+  const fetchBills = async () => {
+    try {
+      setLoading(true);
+
+      const res = await api.get("public/api/master/billings"); // 🔁 your API endpoint
+
+      setBills(res.data.data); // adjust based on API response
+    } catch (error) {
+      console.error("Error fetching bills:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const menuRef = useRef(null);
@@ -37,53 +58,11 @@ const page = () => {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const bills = [
-    {
-      id: "BILL-2024-0125",
-      project: "Ward 15 Road Reconstruction",
-      contractor: "ABC Constructions",
-      milestone: "Base Layer Completion",
-      amount: "₹45.2 L",
-      mb: "MB-2024-0456",
-      date: "1/15/2024",
-      status: "UNDER REVIEW",
-    },
-    {
-      id: "BILL-2024-0124",
-      project: "Sewerage Line Extension",
-      contractor: "XYZ Infrastructure",
-      milestone: "Pipeline Phase 1",
-      amount: "₹32.8 L",
-      mb: "MB-2024-0455",
-      date: "1/12/2024",
-      status: "APPROVED",
-    },
-    {
-      id: "BILL-2024-0123",
-      project: "Community Hall Construction",
-      contractor: "BuildRight Corp",
-      milestone: "Foundation Work",
-      amount: "₹68.5 L",
-      mb: "MB-2024-0454",
-      date: "1/10/2024",
-      status: "PAID",
-    },
-    {
-      id: "BILL-2024-0122",
-      project: "Street Light Installation",
-      contractor: "ElectroCon Ltd",
-      milestone: "Installation Phase 2",
-      amount: "₹18.9 L",
-      mb: "MB-2024-0453",
-      date: "1/8/2024",
-      status: "REJECTED",
-    },
-  ];
-
   const filteredBills =
     activeTab === "All"
       ? bills
       : bills.filter((b) => b.status === activeTab.toUpperCase());
+    
 
   const statusStyle = {
     "UNDER REVIEW": "bg-yellow-100 text-yellow-700",
@@ -157,8 +136,8 @@ const page = () => {
                 <td className="p-4 font-medium">{b.id}</td>
 
                 <td className="p-4">
-                  <p className="font-medium text-blue-600">{b.project}</p>
-                  <p className="text-xs text-gray-500">{b.contractor}</p>
+                  <p className="font-medium text-blue-600">{b.project_id}</p>
+                  <p className="text-xs text-gray-500">{b.project_id}</p>
                 </td>
 
                 <td className="p-4">{b.milestone}</td>
