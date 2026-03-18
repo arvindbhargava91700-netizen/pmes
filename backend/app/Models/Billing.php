@@ -24,7 +24,7 @@ class Billing extends Model
 
         public function milestone()
     {
-        return $this->belongsTo(TenderMilestone::class,'milestone_id');
+        return $this->belongsTo(Milestone::class,'milestone_id');
     }
 
 

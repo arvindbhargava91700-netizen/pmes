@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Billing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Storage;
 
 class BillingController extends Controller
 {
@@ -15,7 +16,7 @@ class BillingController extends Controller
     {
         try {
 
-            $query = Billing::with(['project','status']);
+            $query = Billing::with(['project','status','milestone']);
 
             // filter by status
             if($request->billing_status_id){
@@ -40,62 +41,59 @@ class BillingController extends Controller
     }
 
 
-    // STORE BILL
-        public function store(Request $request)
-        {
+// STORE  BILL
+public function store(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'project_id' => 'required|integer',
+        'milestone_id' => 'required|integer',
+        'amount' => 'required|numeric',
+        'mb_number' => 'nullable|string',
+        'bill_date' => 'required|date',
+        'billing_status_id' => 'required|integer',
+        'remarks' => 'nullable|string',
+        'billing_documents' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120'
+    ]);
 
-            $validator = Validator::make($request->all(),[
-                'project_id' => 'required|integer',
-                'milestone' => 'required',
-                'amount' => 'required|numeric',
-                'mb_number' => 'nullable|string',
-                'bill_date' => 'required|date',
-                'billing_status_id' => 'required|integer',
-                'remarks' => 'nullable|string',
-                'billing_documents' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120'
-            ]);
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => false,
+            'message' => $validator->errors()
+        ], 422);
+    }
 
-            if($validator->fails()){
-                return response()->json([
-                    'status'=>false,
-                    'message'=>$validator->errors()
-                ],422);
-            }
+    try {
+        $data = $validator->validated();
 
-            try{
-            // Upload document
-                if($request->hasFile('billing_documents')){
+        if ($request->hasFile('billing_documents')) {
 
-                    $file = $request->file('billing_documents');
-                    $filename = time().'_'.$file->getClientOriginalName();
+            $file = $request->file('billing_documents');
+            $filename = time() . '_' . $file->getClientOriginalName();
 
-                    $path = $file->storeAs('billing_documents',$filename,'public');
+            $path = $file->storeAs('billing_documents', $filename, 'public');
 
-                    $data['billing_documents'] = $path;
-                }
-                
-                $data = $validator->validated();
-
-                $data['bill_number'] = Billing::generateBillingCode();
-                $data['created_by'] = auth()->id();
-
-                $billing = Billing::create($data);
-
-                return response()->json([
-                    'status'=>true,
-                    'message'=>'Billing created successfully',
-                    'data'=>$billing
-                ],201);
-
-            }catch(\Exception $e){
-
-                return response()->json([
-                    'status'=>false,
-                    'message'=>'Failed to create billing',
-                    'error'=>$e->getMessage()
-                ],500);
-            }
+            $data['billing_documents'] = asset('storage/' . $path);
         }
+
+        $data['bill_number'] = Billing::generateBillingCode();
+        $data['created_by'] = auth()->id();
+
+        $billing = Billing::create($data);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Billing created successfully',
+            'data' => $billing
+        ], 201);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => false,
+            'message' => 'Failed to create billing',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 
 
     // SHOW BILL
@@ -103,7 +101,7 @@ class BillingController extends Controller
     {
         try{
 
-            $billing = Billing::with(['project','status'])->findOrFail($id);
+            $billing = Billing::with(['project','status','milestone'])->findOrFail($id);
 
 // dd($billing);   
             return response()->json([
@@ -136,7 +134,7 @@ class BillingController extends Controller
 
         $validator = Validator::make($request->all(),[
             'project_id' => 'required|integer',
-            'milestone' => 'required',
+             'milestone_id' => 'required|integer',
             'amount' => 'required|numeric',
             'mb_number' => 'nullable|string',
             'bill_date' => 'required|date',
@@ -202,5 +200,16 @@ class BillingController extends Controller
             ],500);
         }
     }
+
+        public function download($file)
+{
+    $filePath = "billing_documents/$file";
+
+    if (!Storage::disk('public')->exists($filePath)) {
+        return response()->json(['message' => 'File not found.'], 404);
+    }
+
+    return Storage::disk('public')->download($filePath);
+}
 
 }

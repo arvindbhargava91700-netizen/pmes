@@ -77,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('eot_request_approval', [EotRequestController::class, 'eot_request_approval']);
         Route::apiResource('billings', BillingController::class);
         Route::apiResource('billing_status', BillingStatusController::class);
+          Route::get('/billing/download/{file}', [BillingController::class, 'download']);
         Route::apiResource('milestones', MilestoneController::class);
         Route::apiResource('grievances', GrievanceController::class);
         Route::apiResource('grievance_status', GrievanceStatusController::class);

@@ -1,5 +1,10 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
+import ExportMenu from "@/components/ExportMenu";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Download,
   Plus,
@@ -16,6 +21,7 @@ import {
   Info,
 } from "lucide-react";
 import api from "@/components/Api/privetApi";
+import toast from "react-hot-toast";
 const formatBudget = (amount) => {
   if (!amount) return "₹0";
   const num = parseFloat(amount);
@@ -25,7 +31,6 @@ const formatBudget = (amount) => {
 };
 const getTextColor = (bgColor) => {
   if (!bgColor) return "#000";
-
   const color = bgColor.replace("#", "");
   const r = parseInt(color.substring(0, 2), 16);
   const g = parseInt(color.substring(2, 4), 16);
@@ -34,6 +39,10 @@ const getTextColor = (bgColor) => {
   const brightness = (r * 299 + g * 587 + b * 114) / 1000;
   return brightness > 125 ? "#000" : "#fff";
 };
+const getTodayDate = () => {
+  return new Date().toISOString().split("T")[0];
+};
+
 const page = () => {
   const [activeTab, setActiveTab] = useState("All");
   const [openMenu, setOpenMenu] = useState(null);
@@ -41,53 +50,94 @@ const page = () => {
   //   const [openModal, setOpenModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [openSubmitModal, setOpenSubmitModal] = useState(false);
+  const [form, setForm] = useState({
+    project_id: "",
+    milestone_id: "",
+    amount: "",
+    mb_number: "",
+    bill_date: getTodayDate(), // ✅ auto today
+    billing_status_id: "1",
+    remarks: "",
+    billing_documents: null,
+  });
 
+  const [errors, setErrors] = useState({});
 
   const [bills, setBills] = useState([]);
+  const [pagination, setPagination] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [statuses, setStatuses] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [milestones, setMilestones] = useState([]);
+  const [load, setLoad] = useState(false);
+  const [label, setLabel] = useState("Download");
 
   const menuRef = useRef(null);
-
+  //==============================================load data========================================
   useEffect(() => {
-    fetchBills();
-    fetchStatuses(); // ✅ add this
+    fetchBills(1);
+    fetchStatuses();
+    fetchProjects();
+    fetchMilestones();
   }, []);
+  //==============================================Fetch data========================================
   const fetchStatuses = async () => {
     try {
       const res = await api.get("public/api/master/billing_status"); // your API
-
       setStatuses(res.data?.data || []);
     } catch (error) {
       console.error("Error fetching statuses:", error);
     }
   };
-  const fetchBills = async () => {
+  const fetchBills = async (page = 1) => {
     try {
       setLoading(true);
-
-      const res = await api.get("public/api/master/billings");
-      const formatted = (res.data?.data?.data || []).map((item) => ({
+      const res = await api.get(`public/api/master/billings?page=${page}`);
+      const paginated = res.data?.data;
+      const formatted = (paginated?.data || []).map((item) => ({
         id: item.bill_number,
         project: item.project?.project_name || "-",
         contractor: item.project?.project_description || "-",
-        milestone: item.milestone || "-",
-        amount: Number(item.amount), // ✅ keep number only
+        milestone: item.milestone?.name || "-",
+        amount: Number(item.amount),
         mb: item.mb_number || "-",
         date: item.bill_date || "-",
-
-        // ✅ FIX HERE
+        remarks: item.remarks || "-",
         status: item.status?.name || "UNDER REVIEW",
-        statusColor: item.status?.color, // "#000", "#22c55e", etc.
+        statusColor: item.status?.color,
+        billing_documents: item.billing_documents || "-",
       }));
-
       setBills(formatted);
+      setPagination(paginated);   // ✅ store full pagination
+      setCurrentPage(paginated.current_page);
+
     } catch (error) {
       console.error("Error fetching bills:", error);
     } finally {
       setLoading(false);
     }
   };
+  const fetchProjects = async () => {
+    try {
+      const res = await api.get("public/api/master/projects");
+      setProjects(res.data.data?.data || []);
+    } catch (error) {
+      console.error("Error fetching Projects:", error);
+    }
+  };
+  const fetchMilestones = async () => {
+    try {
+      const res = await api.get("public/api/master/milestones");
+      setMilestones(res.data?.data || []);
+    } catch (error) {
+      console.error("Error fetching Milestones:", error);
+    }
+  };
+
+
+
+
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -98,17 +148,210 @@ const page = () => {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
-
-
-
-
+  //==============================================Active Tab========================================
   const filteredBills =
     activeTab === "All"
       ? bills
       : bills.filter((b) => b.status === activeTab);
 
+  //================================ form Insertion=================================================
+  const handleChange = (e) => {
+    const { name, value, files } = e.target;
+    const newValue = files ? files[0] : value;
+    setForm((prev) => ({
+      ...prev,
+      [name]: newValue,
+    }));
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: null,
+      }));
+    }
+  };
 
 
+  const handleSubmit = () => {
+    const data = new FormData();
+
+    Object.keys(form).forEach((key) => {
+      if (key === "billing_documents") {
+        if (form.billing_documents) {
+          data.append(key, form.billing_documents);
+        }
+      } else {
+        data.append(key, form[key] || "");
+      }
+    });
+
+    setLoad(true);
+
+    api.post("/public/api/master/billings", data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+      .then((res) => {
+        toast.success(res.data?.message || "Billing created ✅");
+        setErrors({});
+
+        // ✅ reset form
+        setForm({
+          project_id: "",
+          milestone_id: "",
+          amount: "",
+          mb_number: "",
+          bill_date: new Date().toISOString().split("T")[0],
+          billing_status_id: "1",
+          remarks: "",
+          billing_documents: null,
+        });
+        setOpenSubmitModal(false);
+        fetchBills(1);
+      })
+      .catch((err) => {
+        if (err.response?.status === 422) {
+          const backendErrors = err.response.data.message;
+          setErrors(backendErrors);
+        } else {
+          toast.error("Server error ❌");
+        }
+      })
+      .finally(() => {
+        setLoad(false);
+      });
+  };
+  //===============================handle excel =============================
+  // npm install xlsx file-saver  =>excel,copy
+  //npm install jspdf jspdf-autotable =>pdf,csv
+
+  const handleExcel = () => {
+    const data = bills.map((b) => ({
+      "Bill ID": b.id,
+      Project: b.project,
+      Contractor: b.contractor,
+      Milestone: b.milestone,
+      Amount: b.amount,
+      MB: b.mb,
+      Date: b.date,
+      Status: b.status,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Bills");
+
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+
+    saveAs(
+      new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      "Bills.xlsx"
+    );
+  };
+  const handleCopy = () => {
+    navigator.clipboard.writeText(JSON.stringify(bills));
+    alert("Copied!");
+  };
+  const handlePDF = () => {
+    if (!bills.length) {
+      alert("No data to export");
+      return;
+    }
+
+    const doc = new jsPDF();
+
+    // Title
+    doc.text("Billing Report", 14, 15);
+
+    const tableColumn = [
+      "Bill ID",
+      "Project",
+      "Milestone",
+      "Amount",
+      "MB",
+      "Date",
+      "Status",
+    ];
+
+    const tableRows = bills.map((b) => [
+      b.id,
+      b.project,
+      b.milestone,
+      `Rs. ${b.amount.toLocaleString("en-IN")}`,
+      b.mb,
+      b.date,
+      b.status,
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 20,
+    });
+
+    doc.save("Billing_Report.pdf");
+  };
+  const handleCSV = () => {
+    if (!bills.length) {
+      alert("No data to export");
+      return;
+    }
+
+    const headers = [
+      "Bill ID",
+      "Project",
+      "Contractor",
+      "Milestone",
+      "Amount",
+      "MB",
+      "Date",
+      "Status",
+    ];
+
+    const rows = bills.map((b) => [
+      b.id,
+      b.project,
+      b.contractor,
+      b.milestone,
+      b.amount,
+      b.mb,
+      b.date,
+      b.status,
+    ]);
+
+    let csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers, ...rows].map((e) => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Billing_Data.csv");
+    document.body.appendChild(link);
+
+    link.click();
+  };
+  const handleDownload = async (fullUrl) => {
+    try {
+       setLabel("Downloading...");
+      const fileName = fullUrl.split("/").pop(); // e.g., '1773834329_images.png'
+      const downloadUrl = `public/api/master/billing/download/${fileName}`;
+      const res = await api.get(downloadUrl, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName; 
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+       setLabel("Download");
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Download failed. Please check authentication or file access.");
+    }
+  };
   return (
     <div className="min-h-screen bg-gray-50 p-6 mt-12">
       {/* HEADER */}
@@ -120,16 +363,26 @@ const page = () => {
           </p>
         </div>
 
-        <div className="flex gap-3">
-          <button className="border border-gray-300 px-4 py-2 rounded-lg bg-white flex items-center gap-2">
-            <Download size={16} /> Export
-          </button>
+        <div className="flex items-center gap-3 mb-4">
 
+          {/* Export */}
+          <ExportMenu
+            onExcel={handleExcel}
+            onPDF={handlePDF}
+            onCopy={handleCopy}
+            onCSV={handleCSV}
+            className="h-11"
+          />
+
+          {/* Submit Button */}
           <button
             onClick={() => setOpenSubmitModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            className="h-11 px-5 bg-blue-600 text-white rounded-lg 
+               flex items-center gap-2 
+               hover:bg-blue-700 transition"
           >
-            <Plus size={16} /> Submit New Bill
+            <Plus size={18} />
+            Submit New Bill
           </button>
 
         </div>
@@ -140,8 +393,8 @@ const page = () => {
         <button
           onClick={() => setActiveTab("All")}
           className={`px-4 py-2 rounded-lg ${activeTab === "All"
-              ? "bg-white shadow border border-gray-300"
-              : "text-gray-500"
+            ? "bg-white shadow border border-gray-300"
+            : "text-gray-500"
             }`}
         >
           All
@@ -152,8 +405,8 @@ const page = () => {
             key={s.id}
             onClick={() => setActiveTab(s.name)}
             className={`px-4 py-2 rounded-lg ${activeTab === s.name
-                ? "bg-white shadow border border-gray-300"
-                : "text-gray-500"
+              ? "bg-white shadow border border-gray-300"
+              : "text-gray-500"
               }`}
           >
             {s.name}
@@ -237,15 +490,29 @@ const page = () => {
                     <button onClick={() => setOpenMenu(i)}>
                       <MoreVertical size={18} />
                     </button>
-
                     {openMenu === i && (
                       <div
                         ref={menuRef}
                         className="absolute right-0 top-8 bg-white border border-gray-300 rounded-lg shadow-lg w-48 z-50"
                       >
-                        <MenuItem icon={<Eye size={16} />} label="View Details" />
-                        <MenuItem icon={<Download size={16} />} label="Download" />
-                        <MenuItem icon={<FileText size={16} />} label="View MB" />
+                        <MenuItem onClick={() => {
+                          setSelectedBill(b);
+                          setOpenModal(true);
+                        }} icon={<Eye size={16} />} label="View Details" />
+                        <MenuItem
+                          icon={<Download size={16} />}
+                          label={label}
+                          onClick={() => handleDownload(b.billing_documents)}
+                        />
+
+                        <MenuItem icon={<FileText size={16} />} label="View MB" onClick={() => {
+                          const link = document.createElement("a");
+                          link.href = b.billing_documents; // your URL
+                          link.download = ""; // optional, will use the default filename
+                          document.body.appendChild(link);
+                          link.click();
+                          link.remove();
+                        }} />
                         <MenuItem icon={<CheckCircle size={16} />} label="Approve" green />
                         <MenuItem icon={<XCircle size={16} />} label="Reject" red />
                       </div>
@@ -256,6 +523,36 @@ const page = () => {
             )}
           </tbody>
         </table>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-6 px-4 md:px-6 py-3 bg-white border border-gray-200 rounded-xl shadow-sm">
+
+          {/* Left Info */}
+          <p className="text-sm text-gray-500">
+            Showing page {pagination?.current_page} of {pagination?.last_page}
+          </p>
+
+          {/* Buttons */}
+          <div className="flex flex-wrap gap-2 justify-center">
+            {pagination?.links?.map((link, i) => (
+              <button
+                key={i}
+                disabled={!link.url}
+                onClick={() => {
+                  if (link.url) {
+                    const page = new URL(link.url).searchParams.get("page");
+                    fetchBills(page);
+                  }
+                }}
+                className={`px-4 py-1.5 text-sm rounded-lg border transition duration-150
+          ${link.active
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-white hover:bg-gray-100 text-gray-700"}
+          ${!link.url ? "opacity-40 cursor-not-allowed" : ""}
+        `}
+                dangerouslySetInnerHTML={{ __html: link.label }}
+              />
+            ))}
+          </div>
+        </div>
       </div>
 
 
@@ -281,33 +578,52 @@ const page = () => {
 
             <div className="space-y-4">
               {/* Project */}
-              <div>
-                <label className="text-sm font-medium text-gray-700">
-                  Project
-                </label>
-                <select
-                  className="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option>Select project</option>
-                  <option>Ward 15 Road Reconstruction</option>
-                  <option>Sewerage Line Extension</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-2 gap-4">
 
-              {/* Milestone */}
-              <div>
-                <label className="text-sm font-medium text-gray-700">
-                  Milestone
-                </label>
-                <select
-                  className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2
-                       bg-gray-50 text-gray-600"
-                >
-                  <option>Select milestone</option>
-                  <option>Base Layer Completion</option>
-                  <option>Foundation Work</option>
-                </select>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Project
+                  </label>
+                  <select name="project_id" onChange={handleChange}
+                    className="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option>Select project</option>
+                    {
+                      projects.map((p, i) => (
+                        <option key={i} value={p.id}>{p.project_name}</option>
+                      ))}
+
+                  </select>
+                  {errors.project_id && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.project_id[0] ? 'The project field is required.' : ''}
+                    </p>
+                  )}
+                </div>
+
+                {/* Milestone */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Milestone
+                  </label>
+                  <select name="milestone_id" onChange={handleChange}
+                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2
+                      focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option>Select milestone</option>
+                    {
+                      milestones.map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))
+                    }
+                  </select>
+                  {errors.milestone_id && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.milestone_id[0] ? 'The milestone field is required.' : ''}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Amount + MB */}
@@ -316,25 +632,61 @@ const page = () => {
                   <label className="text-sm font-medium text-gray-700">
                     Bill Amount (₹)
                   </label>
-                  <input
+                  <input name="amount" onChange={handleChange}
                     type="text"
                     placeholder="Enter amount"
                     className="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2
                          focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  {errors.amount && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.amount[0]}
+                    </p>
+                  )}
                 </div>
-
                 <div>
                   <label className="text-sm font-medium text-gray-700">
-                    MB Reference
+                    Bill Date
                   </label>
+
                   <input
-                    type="text"
-                    placeholder="MB-2024-XXXX"
+                    type="date"
+                    name="bill_date"
+                    value={form.bill_date}
+                    onChange={handleChange}
                     className="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2
-                         focus:outline-none focus:ring-2 focus:ring-blue-500"
+                focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+
+                  {errors.bill_date && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.bill_date[0]}
+                    </p>
+                  )}
                 </div>
+
+
+
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm font-medium text-gray-700">
+                  MB Reference
+                </label>
+
+                <input
+                  type="text"
+                  name="mb_number"
+                  onChange={handleChange}
+                  placeholder="MB-2024-XXXX"
+                  className="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2
+                    focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+
+                {errors.mb_number && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.mb_number[0]}
+                  </p>
+                )}
               </div>
 
               {/* Remarks */}
@@ -344,31 +696,33 @@ const page = () => {
                 </label>
                 <textarea
                   rows={3}
+                  name="remarks" onChange={handleChange}
                   placeholder="Additional notes..."
                   className="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2
                        focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                {errors.remarks && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.remarks[0]}
+                  </p>
+                )}
               </div>
 
               {/* Upload box */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6
-                        text-center text-gray-500 hover:border-blue-400 cursor-pointer">
-                <div className="flex flex-col items-center gap-2">
-                  <svg
-                    className="w-6 h-6 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12 16V4m0 0L8 8m4-4l4 4" />
-                    <path d="M20 16v4H4v-4" />
-                  </svg>
-                  <span className="text-sm">
-                    Upload bill documents, MB sheets, etc.
-                  </span>
-                </div>
+              <div
+                onClick={() => document.getElementById("fileInput").click()}
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer"
+              >
+                Upload bill documents
               </div>
+
+              <input
+                id="fileInput"
+                type="file"
+                name="billing_documents"
+                onChange={handleChange}
+                className="hidden"
+              />
             </div>
 
             {/* Footer buttons */}
@@ -380,9 +734,13 @@ const page = () => {
                 Cancel
               </button>
               <button
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                onClick={handleSubmit}
+                disabled={load}
+                className={`bg-blue-600 text-white px-4 py-2 rounded-lg
+                    hover:bg-blue-700 transition
+                    ${load ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                Submit Bill
+                {load ? "Submitting..." : "Submit Bill"}
               </button>
             </div>
           </div>
@@ -416,7 +774,11 @@ const page = () => {
             <div className="flex justify-between mb-4">
               <h2 className="text-xl font-semibold">{selectedBill.id}</h2>
               <span
-                className={`px-3 py-1 rounded-full text-sm ${statusStyle[selectedBill.status]}`}
+                className="px-3 py-1 rounded-full text-sm"
+                style={{
+                  backgroundColor: selectedBill.bg_color,
+                  color: selectedBill.text_color,
+                }}
               >
                 {selectedBill.status}
               </span>
@@ -452,24 +814,28 @@ const page = () => {
             </button>
 
             <div className="flex justify-between mb-4">
-              <h2 className="text-xl font-semibold">BILL-2024-0125</h2>
-              <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm">
-                UNDER REVIEW
+              <h2 className="text-xl font-semibold">{selectedBill.id}</h2>
+              <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm" style={{
+                backgroundColor: selectedBill.statusColor,
+                color: getTextColor(selectedBill.statusColor),
+              }}>
+
+                {selectedBill.status}
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-6 text-sm">
-              <InfoBlock title="Project" value="Ward 15 Road Reconstruction" />
-              <InfoBlock title="Contractor" value="ABC Constructions" />
-              <InfoBlock title="Milestone" value="Base Layer Completion" />
-              <InfoBlock title="MB Reference" value="MB-2024-0456" />
-              <InfoBlock title="Submitted Date" value="1/15/2024" />
-              <InfoBlock title="Amount" value="₹45.2 L" />
+              <InfoBlock title="Project" value={selectedBill.project} />
+              <InfoBlock title="Contractor" value={selectedBill.contractor} />
+              <InfoBlock title="Milestone" value={selectedBill.milestone} />
+              <InfoBlock title="MB Reference" value={selectedBill.mb} />
+              <InfoBlock title="Submitted Date" value={selectedBill.date} />
+              <InfoBlock title="Amount" value={selectedBill.amount} />
             </div>
 
             <div className="mt-6 bg-gray-50 p-4 rounded-lg">
               <p className="text-gray-500 text-sm">Remarks</p>
-              <p>Awaiting quality verification report</p>
+              <p>{selectedBill.remarks}</p>
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
@@ -486,6 +852,8 @@ const page = () => {
           </div>
         </div>
       )}
+
+
     </div>
   );
 };
@@ -493,14 +861,21 @@ const page = () => {
 export default page;
 
 /* COMPONENTS */
-const MenuItem = ({ icon, label, red, green }) => (
-  <div
-    className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-100 ${red ? "text-red-600" : green ? "text-green-600" : ""
-      }`}
+const MenuItem = ({ icon, label, red, green, onClick }) => (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation(); // ✅ prevents parent close issue
+      onClick && onClick();
+    }}
+    className={`w-full flex items-center gap-3 px-4 py-2 text-left 
+      hover:bg-gray-100 transition
+      ${red ? "text-red-600" : green ? "text-green-600" : "text-gray-700"}
+    `}
   >
     {icon}
     {label}
-  </div>
+  </button>
 );
 
 const InfoBlock = ({ title, value }) => (
