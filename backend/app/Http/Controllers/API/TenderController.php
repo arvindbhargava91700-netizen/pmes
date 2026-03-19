@@ -95,12 +95,13 @@ class TenderController extends Controller
                         'id'             => $tender->id,
                         'tender_id'      => $tender->tender_code,
                         'title'          => $tender->title,
+                        'description'=> $tender->description,
                         'department'     => optional($tender->department)->name,
                         'estimated_cost' => $tender->estimated_cost,
                         'status'         => optional($tender->tenderStatus)->name,
                         'status_color'   => optional($tender->tenderStatus)->color,
                         'closing_date'   => optional($tender->timeline)->end_date,
-                        'bid'            => '0 bid',
+                        'bid'            => '0',
                     ];
                 }),
                 'pagination' => [
@@ -148,6 +149,7 @@ class TenderController extends Controller
             'milestones' => 'required|array|min:1',
             'milestones.*.sequence_no' => 'required|integer',
             'milestones.*.milestone_title' => 'required|string',
+            'milestones.*.description' => 'required|string',
             'milestones.*.duration_weeks' => 'required|integer|min:1',
             'milestones.*.dependencies' => 'nullable|array',
             'milestones.*.dependencies.*' => 'integer',
@@ -205,6 +207,7 @@ class TenderController extends Controller
                     'title' => $item['milestone_title'],
                     'duration_weeks' => $item['duration_weeks'],
                     'is_critical' => $item['is_critical'],
+                    'description' => $item['description'],
                 ]);
 
                 $milestoneMap[$item['sequence_no']] = $milestone->id;

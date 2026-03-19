@@ -192,7 +192,7 @@ const CreateProject = () => {
             {/* Total Buget */}
             <div className="col-span-2 md:col-span-1">
               <label className="block text-sm font-semibold mb-2">
-                Total Buget <span className="text-red-500">*</span>
+                Total Bugets <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
