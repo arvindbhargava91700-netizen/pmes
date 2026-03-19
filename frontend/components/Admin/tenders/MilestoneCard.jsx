@@ -1,91 +1,126 @@
-import React, { useState } from "react"; // 1. useState import karein
+import React, { useState } from "react";
 import { GripVertical, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 
 const MilestoneCard = ({
   id,
-  title,
-  duration,
-  dependencies,
+  data,
+  dependenciesList,
+  onChange,
+  onDependencyChange,
+  onDelete,
   initialExpanded = false,
 }) => {
   const [isOpen, setIsOpen] = useState(initialExpanded);
 
   return (
-    <div className="w-full border-1 border-red-300 rounded-2xl bg-red-50/50 p-4 mt-2">
-      <div className="flex justify-between items-center gap-2">
-        <div className="flex items-center gap-2">
-          <GripVertical className="text-gray-500 cursor-grab" size={20} />
-          <span className="flex items-center justify-center w-8 h-8 rounded-2xl bg-red-100 text-red-500 font-semibold text-sm">
-            {id}
-          </span>
+    <div className="w-full bg-red-50 border border-red-200 rounded-2xl p-4 mt-3 shadow-sm hover:shadow-md transition">
+      {/* TOP ROW */}
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex gap-3 w-full">
+          <GripVertical className="text-gray-400 mt-2 cursor-grab" size={18} />
 
-          <div className="grid grid-cols-12 gap-3">
+          {/* ID */}
+          <div className="w-9 h-9 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 font-semibold text-sm">
+            {id}
+          </div>
+
+          {/* INPUTS */}
+          <div className="grid grid-cols-12 gap-3 w-full">
             <div className="col-span-8">
               <input
                 type="text"
-                defaultValue={title}
-                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl"
+                value={data?.milestone_title || ""}
+                onChange={(e) => onChange("milestone_title", e.target.value)}
+                placeholder="Enter milestone title..."
+                className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div className="col-span-4">
               <input
                 type="number"
-                defaultValue={duration}
-                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl"
+                value={data?.duration_weeks || ""}
+                onChange={(e) => onChange("duration_weeks", e.target.value)}
+                placeholder="Weeks"
+                className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
           </div>
 
-          {dependencies.length > 0 && !isOpen && (
-            <span className="px-3 py-1 text-nowrap bg-blue-50 text-zinc-600 text-xs font-medium rounded-full">
-              {dependencies.length} dep
-            </span>
-          )}
+          {/* TAGS */}
+          <div className="flex items-center gap-2">
+            {(data.dependencies || []).length > 0 && (
+              <span className="text-xs bg-blue-50 text-blue-600 text-nowrap px-3 py-1 rounded-full font-medium">
+                {data.dependencies.length} Dependencies
+              </span>
+            )}
 
-          <span className="px-2 py-0.5 bg-red-500 hover:bg-red-400 text-white text-xs font-bold rounded-full tracking-wider">
-            Critical
-          </span>
+            <span className="text-xs bg-red-600 text-white px-3 py-1 rounded-full font-medium">
+              Critical
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* ACTIONS */}
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="text-slate-400 hover:text-blue-600 px-2 transition-transform h-10 w-10 hover:bg-zinc-100 hover:border border-zinc-200 flex justify-center items-center cursor-pointer rounded-xl"
+            className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-zinc-100 hover:text-blue-500 cursor-pointer text-gray-500"
           >
-            {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
 
-          <button className="text-slate-500 hover:text-red-500 h-10 w-10 hover:bg-zinc-100 hover:border border-zinc-200 flex justify-center items-center cursor-pointer rounded-xl">
+          <button
+            onClick={onDelete}
+            className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-500 cursor-pointer"
+          >
             <Trash2 size={18} />
           </button>
         </div>
       </div>
 
+      {/* EXPANDED */}
       {isOpen && (
-        <div className="mt-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200 border-t border-zinc-200">
+        <div className="mt-5 border-t border-zinc-300 pt-4 space-y-4">
+          {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 my-2">
+            <label className="text-sm font-medium text-gray-600 mb-1 block">
               Description
             </label>
             <textarea
-              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-slate-600 min-h-[80px]"
-              placeholder="Milestone description..."
+              rows={4}
+              value={data.description}
+              onChange={(e) => onChange("description", e.target.value)}
+              placeholder="Write milestone description..."
+              className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
 
+          {/* Dependencies */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-2">
-             Dependencies (select milestones that must complete before this one)
+            <label className="text-sm font-medium text-gray-600 mb-2 block">
+              Dependencies (select milestones that must complete before this
+              one)
             </label>
+
             <div className="flex flex-wrap gap-2">
-              {dependencies.map((dep, idx) => (
-                <button
-                  key={idx}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm text-slate-700 hover:text-blue-500 cursor-pointer"
-                >
-                  <span className="text-slate-400">{dep.id}</span> {dep.label}
-                </button>
-              ))}
+              {dependenciesList.map((dep) => {
+                const active = data.dependencies.includes(dep.id);
+
+                return (
+                  <button
+                    key={dep.id}
+                    onClick={() => onDependencyChange(dep.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                      active
+                        ? "bg-zinc-200 text-zinc-700 border-zinc-300"
+                        : "bg-zinc-50 text-gray-600 border-zinc-200 hover:bg-zinc-100"
+                    }`}
+                  >
+                    {dep.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

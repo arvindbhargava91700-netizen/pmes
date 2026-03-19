@@ -6,64 +6,249 @@ import {
   BarChart3,
   GitBranch,
   Target,
-  Menu,
   GripVertical,
   Plus,
   CalendarIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import GanttChart from "@/components/Admin/tenders/GanttChart";
 import PertChart from "@/components/Admin/tenders/PertChart";
 import CriticalPathAnalysis from "@/components/Admin/tenders/CriticalPath";
-import { FaRegCalendarAlt, FaRegFileAlt } from "react-icons/fa";
+import { FaRegFileAlt } from "react-icons/fa";
 import MilestoneCard from "@/components/Admin/tenders/MilestoneCard";
-
-const deps = [
-  { id: 2, label: "Foundation Work" },
-  { id: 3, label: "Structural Framework" },
-  { id: 4, label: "Electrical & Plumbing" },
-  { id: 5, label: "Interior Finishing" },
-  { id: 6, label: "Final Inspection" },
-];
+import { useMutation, useQuery } from "@tanstack/react-query";
+import api from "@/components/Api/privetApi";
+import toast from "react-hot-toast";
 
 export default function TenderDetails() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("details");
   const fileInputRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
+  const [documents, setDocuments] = useState([]);
+  const [errors, setErrors] = useState(null);
+  const [milestones, setMilestones] = useState([
+    {
+      sequence_no: 1,
+      milestone_title: "",
+      duration_weeks: "",
+      description: "",
+      dependencies: [],
+      is_critical: 1,
+    },
+  ]);
+  const [formData, setFormData] = useState({
+    tender_code: "",
+    title: "",
+    department_id: "",
+    work_type_id: "",
+    estimated_cost: "",
+    emd_amount: "",
+    description: "",
+    tender_status_id: 1,
+    start_date: "",
+    end_date: "",
+    schedule_type: "",
+    project_duration_weeks: "",
+    is_locked: 0,
+  });
 
-  // dynimic states
-  const [title, setTitle] = useState("");
-  const [estimated_cost, setEstimated_cost] = useState("");
-  const [emd_amount, setEmd_amount] = useState("");
-  const [description, setDescription] = useState("");
-  const [start_date, setStart_date] = useState("");
-  const [end_date, setEnd_date] = useState("");
-  const [schedule_type, setSchedule_type] = useState("");
-  const [project_duration_weeks, setProject_duration_weeks] = useState("");
-  const [is_locked, setIs_locked] = useState(0);
-  const [sequence_no, setSequence_no] = useState("");
-  const [milestone_title, setMilestone_title] = useState("");
-  const [duration_weeks, setDuration_weeks] =useState();
-  const [dependencies, setDependencies] = useState([])
-  const [is_critical, setIs_critical] = useState("");
-  const [file_name, setFile_name] = useState("");
-  const [file_path, setFile_path] = useState("");
-  const [file_size, setFile_size] = useState("");
-  const [mime_type, setMime_type] = useState("");
+  // tender Department
+  const fetchDepartments = async () => {
+    const res = await api.get("/public/api/master/departments");
+    console.log(res.data);
+    return res.data || [];
+  };
 
-  // const handleBoxClick = () => {
-  //   fileInputRef.current.click();
-  // };
+  const { data: tenderDepartments = [] } = useQuery({
+    queryKey: ["tenderDepartments"],
+    queryFn: fetchDepartments,
+  });
 
-  // const handleFileChange = (event) => {
-  //   const files = event.target.files;
-  //   console.log("Selected files:", files);
-  // };
+  // tender Type
+  const fetchType = async () => {
+    const res = await api.get("/public/api/master/work-types");
+    console.log(res.data);
+    return res.data || [];
+  };
 
-  // const tenderCreate = () => {
-  //   const res = async() => 
-  // }
+  const { data: tenderType = [] } = useQuery({
+    queryKey: ["tenderStatus"],
+    queryFn: fetchType,
+  });
+
+  // create tender
+  const createTender = async (data) => {
+    const res = await api.post("/public/api/tender", data);
+    return res.data;
+  };
+
+  const { mutate, isPending, isError } = useMutation({
+    mutationFn: createTender,
+    onSuccess: (data) => {
+      if (data?.status === true || data?.status === 200) {
+        toast.success(data.message || "Tender created successful!");
+
+        setFormData({
+          tender_code: "",
+          title: "",
+          department_id: "",
+          work_type_id: "",
+          estimated_cost: "",
+          emd_amount: "",
+          description: "",
+          tender_status_id: 1,
+          start_date: "",
+          end_date: "",
+          schedule_type: "daily",
+          project_duration_weeks: "",
+          is_locked: 0,
+        });
+
+        setMilestones([
+          {
+            sequence_no: 1,
+            milestone_title: "",
+            duration_weeks: "",
+            description: "",
+            dependencies: [],
+            is_critical: 1,
+          },
+        ]);
+        setDocuments([]);
+        setErrors(null);
+      }
+    },
+    onError: (error) => {
+      console.log("API Error ", error.response?.data);
+      setErrors(error?.response?.data);
+      toast.error(error.response?.data?.message || "Server error, try again");
+    },
+  });
+
+  const updateMilestone = (index, field, value) => {
+    setMilestones((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        [field]: value,
+      };
+      const finalList = updated.map((m, i) => {
+        if (i === 0) return { ...m, dependencies: [] };
+        const prevFilled = updated
+          .slice(0, i)
+          .filter((item) => item.milestone_title.trim() !== "")
+          .map((_, idx) => idx + 1);
+        return {
+          ...m,
+          dependencies: prevFilled,
+        };
+      });
+      return finalList;
+    });
+  };
+
+  const handleDependencyChange = (currentIndex, depId) => {
+    setMilestones((prev) => {
+      const newMilestones = JSON.parse(JSON.stringify(prev));
+      const currentDeps = newMilestones[currentIndex].dependencies || [];
+      const idToToggle = Number(depId);
+      const indexInDeps = currentDeps.indexOf(idToToggle);
+      if (indexInDeps > -1) {
+        currentDeps.splice(indexInDeps, 1);
+      } else {
+        currentDeps.push(idToToggle);
+      }
+      newMilestones[currentIndex].dependencies = currentDeps;
+      console.log("Updated Milestones State:", newMilestones);
+      return newMilestones;
+    });
+  };
+
+  const formattedMilestones = milestones.map((m, i) => ({
+    sequence_no: i + 1,
+    milestone_title: m.milestone_title,
+    duration_weeks: Number(m.duration_weeks),
+    description: m.description,
+    dependencies: m.dependencies.map((d) => Number(d)),
+    is_critical: Number(m.is_critical),
+  }));
+
+  const handleSubmit = async () => {
+    try {
+      const payload = {
+        ...formData,
+        department_id: formData.department_id,
+        work_type_id: formData.work_type_id,
+        estimated_cost: formData.estimated_cost,
+        emd_amount: formData.emd_amount,
+        schedule_type: formData.schedule_type,
+        project_duration_weeks: Number(formData.project_duration_weeks),
+
+        milestones: formattedMilestones,
+        documents,
+      };
+
+      mutate(payload);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // project_duration_weeks
+  const calculateDuration = (start, end) => {
+    if (!start || !end) return "";
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diffTime = endDate - startDate;
+    if (diffTime < 0) return "";
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    const weeks = Math.ceil(diffDays / 7);
+    return weeks;
+  };
+
+  useEffect(() => {
+    const weeks = calculateDuration(formData.start_date, formData.end_date);
+    setFormData((prev) => ({
+      ...prev,
+      project_duration_weeks: weeks,
+    }));
+  }, [formData.start_date, formData.end_date]);
+
+  // file upload
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    processFiles(files);
+  };
+
+  const processFiles = (files) => {
+    const formatted = files.map((file) => ({
+      file_name: file.name,
+      file_path: "uploads/temp",
+      file_size: String(file.size),
+      mime_type: file.type,
+    }));
+
+    setDocuments((prev) => [...prev, ...formatted]);
+  };
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    processFiles(files);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -87,7 +272,7 @@ export default function TenderDetails() {
           </div>
 
           {/* Right Section: Action Buttons */}
-          <div className="flex items-center gap-2 md:gap-3">
+          {/* <div className="flex items-center gap-2 md:gap-3">
             <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-4 py-2 rounded-xl cursor-pointer hover:text-blue-500 border border-zinc-300 text-sm md:text-base text-gray-700 hover:bg-gray-50 whitespace-nowrap">
               <FileText size={16} />
               <span className="hidden sm:inline">Save as Draft</span>
@@ -98,7 +283,7 @@ export default function TenderDetails() {
               <Save size={16} />
               <span>Create Tender</span>
             </button>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -140,29 +325,97 @@ export default function TenderDetails() {
               <hr className="border-zinc-200 mb-6" />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <div className="md:col-span-2">
+                <div className="md:col-span-1">
+                  <label className="text-sm font-medium">
+                    Tender Code <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.tender_code}
+                    onChange={(e) =>
+                      setFormData({ ...formData, tender_code: e.target.value })
+                    }
+                    placeholder="Enter tender code"
+                    className="mt-1 w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  {isError && errors?.errors?.tender_code && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.errors.tender_code}
+                    </p>
+                  )}
+                </div>
+
+                <div className="md:col-span-1">
                   <label className="text-sm font-medium">
                     Tender Title <span className="text-red-500">*</span>
                   </label>
                   <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
                     placeholder="Enter tender title"
                     className="mt-1 w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
                   />
+                  {isError && errors?.errors?.title && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.errors.title}
+                    </p>
+                  )}
                 </div>
 
                 {/* Responsive Selects */}
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-1">
                   <label className="text-sm font-medium">Department *</label>
-                  <select className="w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50">
+                  <select
+                    value={formData.department_id}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        department_id: e.target.value,
+                      })
+                    }
+                    className="w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50"
+                  >
                     <option>Select department</option>
+                    {tenderDepartments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))}
                   </select>
+                  {isError && errors?.errors?.department_id && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.errors.department_id}
+                    </p>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-1">
                   <label className="text-sm font-medium">Type of Work *</label>
-                  <select className="w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50">
+                  <select
+                    value={formData.work_type_id}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        work_type_id: e.target.value,
+                      })
+                    }
+                    className="w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50"
+                  >
                     <option>Select work type</option>
+                    {tenderType.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.workType}
+                      </option>
+                    ))}
                   </select>
+                  {isError && errors?.errors?.work_type_id && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.errors.work_type_id}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -170,26 +423,58 @@ export default function TenderDetails() {
                     Estimated Cost (₹) *
                   </label>
                   <input
+                    type="text"
+                    value={formData.estimated_cost}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        estimated_cost: e.target.value,
+                      })
+                    }
                     placeholder="Enter cost"
                     className="mt-1 w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50"
                   />
+                  {isError && errors?.errors?.estimated_cost && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.errors.estimated_cost}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <label className="text-sm font-medium">EMD Amount (₹)</label>
                   <input
+                    type="text"
+                    value={formData.emd_amount}
+                    onChange={(e) =>
+                      setFormData({ ...formData, emd_amount: e.target.value })
+                    }
                     placeholder="Enter amount"
                     className="mt-1 w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50"
                   />
+                  {isError && errors?.errors?.emd_amount && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.errors.emd_amount}
+                    </p>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium">Description</label>
                   <textarea
                     rows="4"
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
                     className="mt-1 w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50"
-                    placeholder="..."
+                    placeholder="Enter Description ..."
                   />
+                  {isError && errors?.errors?.description && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.errors.description}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -213,10 +498,19 @@ export default function TenderDetails() {
                   <div className="relative mt-2">
                     <CalendarIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
-                      type="text"
-                      placeholder="Select date"
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, start_date: e.target.value })
+                      }
+                      placeholder="Select starting date"
                       className="w-full pl-10 pr-3 py-2 border border-zinc-100 rounded-xl text-sm bg-gray-50 focus:outline-none"
                     />
+                    {isError && errors?.errors?.start_date && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.errors.start_date}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -228,10 +522,19 @@ export default function TenderDetails() {
                   <div className="relative mt-2">
                     <CalendarIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
-                      type="text"
-                      placeholder="Select date"
+                      type="date"
+                      value={formData.end_date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, end_date: e.target.value })
+                      }
+                      placeholder="Select ending date"
                       className="w-full pl-10 pr-3 py-2 border border-zinc-100 rounded-xl text-sm bg-gray-50 focus:outline-none"
                     />
+                    {isError && errors?.errors?.end_date && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.errors.end_date}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -240,11 +543,25 @@ export default function TenderDetails() {
                   <label className="text-sm font-medium">
                     Schedule Type <span className="text-red-500">*</span>
                   </label>
-                  <select className="w-full mt-2 px-3 py-2 border border-zinc-100 rounded-xl text-sm bg-gray-50 focus:outline-none">
-                    <option>Monthly</option>
-                    <option>Weekly</option>
-                    <option>Daily</option>
+                  <select
+                    value={formData.schedule_type}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        schedule_type: e.target.value,
+                      })
+                    }
+                    className="w-full mt-2 px-3 py-2 border border-zinc-100 rounded-xl text-sm bg-gray-50 focus:outline-none"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="daily">Daily</option>
                   </select>
+                  {isError && errors?.errors?.schedule_type && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.errors.schedule_type}
+                    </p>
+                  )}
                 </div>
 
                 {/* Project Duration */}
@@ -253,7 +570,9 @@ export default function TenderDetails() {
                     Project Duration
                   </label>
                   <div className="mt-2 flex items-center gap-2 px-3 py-2 border border-zinc-100 rounded-xl bg-gray-50">
-                    <span className="text-lg font-semibold">40</span>
+                    <span className="text-lg font-semibold">
+                      {formData.project_duration_weeks || 0}
+                    </span>
                     <span className="text-sm text-gray-500">weeks</span>
                   </div>
                 </div>
@@ -263,7 +582,17 @@ export default function TenderDetails() {
               <div className="mt-6 bg-gray-50 rounded-xl p-4 flex items-center gap-3">
                 {/* Toggle */}
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" />
+                  <input
+                    type="checkbox"
+                    checked={formData.is_locked === 1}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        is_locked: e.target.checked ? 1 : 0,
+                      }))
+                    }
+                    className="sr-only peer"
+                  />
                   <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition"></div>
                   <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-5"></div>
                 </label>
@@ -290,59 +619,63 @@ export default function TenderDetails() {
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="text-xs p-0.5 flex items-center px-4 text-zinc-600 font-semibold border border-zinc-300 rounded-full">
-                    6 milestones
+                    {milestones.length} milestones
                   </p>
                   <p className="text-xs p-0.5 flex items-center px-4 text-red-600 font-semibold border border-red-300 rounded-full">
-                    6 critical
+                    {
+                      milestones.filter((m) => Number(m.is_critical) === 1)
+                        .length
+                    }{" "}
+                    critical
                   </p>
-                  <p className="text-xs p-1.5 px-4 text-zinc-600 font-semibold border bg-zinc-50 border-zinc-300 rounded-lg flex gap-2 items-center">
+                  <p
+                    onClick={() =>
+                      setMilestones((prev) => [
+                        ...prev,
+                        {
+                          sequence_no: prev.length + 1,
+                          milestone_title: "",
+                          duration_weeks: "",
+                          description: "",
+                          dependencies: [],
+                          is_critical: 1,
+                        },
+                      ])
+                    }
+                    className="text-xs cursor-pointer p-1.5 px-4 text-zinc-600 font-semibold border bg-zinc-50 hover:bg-zinc-100 border-zinc-300 rounded-lg flex gap-2 items-center"
+                  >
                     {" "}
                     <Plus size={13} /> Add Milestone
                   </p>
                 </div>
               </div>
-              <MilestoneCard
-                id={1}
-                title="Site Clearance & Setup"
-                duration={2}
-                isExpanded={true}
-                dependencies={deps}
-              />
-              <MilestoneCard
-                id={2}
-                title="Foundation Work"
-                duration={6}
-                isExpanded={true}
-                dependencies={deps}
-              />
-              <MilestoneCard
-                id={3}
-                title="Structural Framework"
-                duration={12}
-                isExpanded={true}
-                dependencies={deps}
-              />
-              <MilestoneCard
-                id={4}
-                title="Electrical & Plumbing"
-                duration={8}
-                isExpanded={true}
-                dependencies={deps}
-              />
-              <MilestoneCard
-                id={5}
-                title="Interior Finishing"
-                duration={10}
-                isExpanded={true}
-                dependencies={deps}
-              />
-              <MilestoneCard
-                id={6}
-                title="Final Inspection"
-                duration={2}
-                isExpanded={true}
-                dependencies={deps}
-              />
+
+              {milestones.map((m, index) => (
+                <MilestoneCard
+                  key={index}
+                  id={index + 1}
+                  data={m}
+                  dependenciesList={milestones
+                    .slice(0, index)
+                    .map((item, i) => ({
+                      id: i + 1,
+                      label:
+                        item.milestone_title.trim() !== ""
+                          ? item.milestone_title
+                          : `M${i + 1}`,
+                    }))}
+                  onChange={(field, value) =>
+                    updateMilestone(index, field, value)
+                  }
+                  onDependencyChange={(depId) =>
+                    handleDependencyChange(index, depId)
+                  }
+                  onDelete={() => {
+                    const updated = milestones.filter((_, i) => i !== index);
+                    setMilestones(updated);
+                  }}
+                />
+              ))}
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-6 mt-5">
@@ -352,17 +685,26 @@ export default function TenderDetails() {
               </div>
 
               <div
-                // onClick={handleBoxClick}
-                className="border-2 hover:border-blue-500 border-dashed border-gray-200 cursor-pointer rounded-xl p-8 flex flex-col items-center justify-center bg-gray-50/50 mb-4"
+                onClick={() => fileInputRef.current.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center mb-4 cursor-pointer transition-all
+                ${
+                  isDragging
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 bg-gray-50/50 hover:border-blue-400"
+                }`}
               >
                 <input
                   type="file"
-                  // ref={fileInputRef}
-                  // onChange={handleFileChange}
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
                   className="hidden"
                   multiple
                   accept=".pdf,.doc,.docx,.xls,.xlsx"
                 />
+
                 <div className="bg-blue-50 p-3 rounded-xl mb-3">
                   <svg
                     className="w-6 h-6 text-blue-500"
@@ -375,39 +717,78 @@ export default function TenderDetails() {
                       strokeLinejoin="round"
                       strokeWidth="2"
                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                    ></path>
+                    />
                   </svg>
                 </div>
+
                 <p className="text-sm text-gray-600 font-medium">
-                  Drag and drop files here or{" "}
-                  <span className="text-blue-600 cursor-pointer">
-                    click to browse
+                  Drag & drop files here or{" "}
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current.click();
+                    }}
+                    className="text-blue-600 cursor-pointer"
+                  >
+                    browse
                   </span>
                 </p>
+
                 <p className="text-[11px] text-gray-400 mt-1 uppercase">
                   PDF, DOC, XLS up to 25MB each
                 </p>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-blue-200 transition-all">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-blue-50 p-2 rounded-lg text-blue-600 font-bold text-xs italic">
-                      PDF
+              {isError && errors?.errors?.documents && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.errors.documents}
+                </p>
+              )}
+
+              <div className="w-full mt-3">
+                <button
+                  onClick={handleSubmit}
+                  disabled={isPending}
+                  className="flex items-center justify-center gap-2 w-full py-2 rounded-xl cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  <Save size={16} />
+                  <span>{isPending ? "Creating Tender" : "Create Tender"}</span>
+                </button>
+              </div>
+
+              <div className="space-y-3 mt-3">
+                {documents.map((doc, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-blue-200"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-50 p-2 rounded-lg text-blue-600 text-xs font-bold">
+                        {doc.mime_type.split("/")[1]?.toUpperCase()}
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {doc.file_name}
+                        </p>
+                        <p className="text-[10px] text-gray-400 uppercase">
+                          {(doc.file_size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">
-                        Tender Notice.pdf
-                      </p>
-                      <p className="text-[10px] text-gray-400 font-medium uppercase">
-                        PDF • 245 KB
-                      </p>
-                    </div>
+
+                    <button
+                      onClick={() =>
+                        setDocuments((prev) =>
+                          prev.filter((_, i) => i !== index)
+                        )
+                      }
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <button className="text-gray-400 hover:text-red-500">
-                    ×
-                  </button>
-                </div>
+                ))}
               </div>
             </div>
           </>
