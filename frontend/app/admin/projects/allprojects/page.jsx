@@ -132,6 +132,7 @@ export default function ProjectDashboard() {
       p.department?.name === selectedDepartments;
     return matchSearch && matchStatus && matchZone && matchDepartment;
   });
+  
   //==============================fetch data================================
   const fetchProjects = async () => {
     try {

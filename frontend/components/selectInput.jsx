@@ -7,10 +7,10 @@ const SelectInput = ({ options, selected, setSelected }) => {
 
   return (
     <div>
-      <div className="relative inline-flex font-sans">
+      <div className="relative w-full font-sans">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="inline-flex cursor-pointer items-center gap-2 text-nowrap
+          className="w-full flex cursor-pointer items-center gap-2 text-nowrap
         justify-between bg-[#F1F3F6] border border-transparent rounded-xl
         px-3 py-2.5 text-sm font-medium text-slate-700
         hover:bg-zinc-200 transition-all
