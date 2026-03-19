@@ -81,9 +81,9 @@ export default function TenderDetails() {
   // create tender
   const createTender = async (data) => {
     const res = await api.post("/public/api/tender", data, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-    
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
     return res.data;
   };
 
@@ -192,7 +192,6 @@ export default function TenderDetails() {
         milestones: formattedMilestones,
         documents,
       };
-
       mutate(payload);
     } catch (err) {
       console.error(err);
@@ -245,7 +244,7 @@ export default function TenderDetails() {
       mime_type: file.type,
     }));
 
-    setDocuments((prev) => [...prev, ...formatted]);
+    setDocuments((prev) => [...prev, ...files]);
   };
 
   const handleFileChange = (e) => {
@@ -767,7 +766,7 @@ export default function TenderDetails() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="bg-blue-50 p-2 rounded-lg text-blue-600 text-xs font-bold">
-                        {doc.mime_type.split("/")[1]?.toUpperCase()}
+                         {(doc.type || doc.mime_type)?.split("/")[1]?.toUpperCase() || "FILE"}
                       </div>
 
                       <div>
