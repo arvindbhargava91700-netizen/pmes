@@ -45,6 +45,7 @@ const getTodayDate = () => {
 
 const page = () => {
   const [activeTab, setActiveTab] = useState("All");
+  const [selectedStatusId, setSelectedStatusId] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
   const [openModal, setOpenModal] = useState(false);
   //   const [openModal, setOpenModal] = useState(false);
@@ -56,7 +57,7 @@ const page = () => {
     amount: "",
     mb_number: "",
     bill_date: getTodayDate(), // ✅ auto today
-    billing_status_id: "1",
+    billing_status_id: "",
     remarks: "",
     billing_documents: null,
   });
@@ -73,10 +74,16 @@ const page = () => {
   const [load, setLoad] = useState(false);
   const [label, setLabel] = useState("Download");
 
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    action: null, // "approve" or "reject"
+    id: null,
+  });
+
   const menuRef = useRef(null);
   //==============================================load data========================================
   useEffect(() => {
-    fetchBills(1);
+    fetchBills(1, selectedStatusId); // reset to page 1
     fetchStatuses();
     fetchProjects();
     fetchMilestones();
@@ -90,12 +97,13 @@ const page = () => {
       console.error("Error fetching statuses:", error);
     }
   };
-  const fetchBills = async (page = 1) => {
+  const fetchBills_old = async (page = 1) => {
     try {
       setLoading(true);
       const res = await api.get(`public/api/master/billings?page=${page}`);
       const paginated = res.data?.data;
       const formatted = (paginated?.data || []).map((item) => ({
+        main_id: item.id,
         id: item.bill_number,
         project: item.project?.project_name || "-",
         contractor: item.project?.project_description || "-",
@@ -110,6 +118,47 @@ const page = () => {
       }));
       setBills(formatted);
       setPagination(paginated);   // ✅ store full pagination
+      setCurrentPage(paginated.current_page);
+
+    } catch (error) {
+      console.error("Error fetching bills:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchBills = async (page = 1, statusId = null) => {
+    try {
+      setLoading(true);
+
+      let url = `public/api/master/billings?page=${page}`;
+
+      // ✅ add status filter
+      if (statusId) {
+        url += `&billing_status_id=${statusId}`;
+      }
+
+      const res = await api.get(url);
+
+      const paginated = res.data?.data;
+
+      const formatted = (paginated?.data || []).map((item) => ({
+        main_id: item.id,
+        id: item.bill_number,
+        project: item.project?.project_name || "-",
+        contractor: item.project?.project_description || "-",
+        milestone: item.milestone?.name || "-",
+        amount: Number(item.amount),
+        mb: item.mb_number || "-",
+        date: item.bill_date || "-",
+        remarks: item.remarks || "-",
+        status: item.status?.name || "UNDER REVIEW",
+        statusColor: item.status?.color,
+        billing_documents: item.billing_documents || "-",
+      }));
+
+      setBills(formatted);
+      setPagination(paginated);
       setCurrentPage(paginated.current_page);
 
     } catch (error) {
@@ -200,12 +249,12 @@ const page = () => {
           amount: "",
           mb_number: "",
           bill_date: new Date().toISOString().split("T")[0],
-          billing_status_id: "1",
+          billing_status_id: "",
           remarks: "",
           billing_documents: null,
         });
         setOpenSubmitModal(false);
-        fetchBills(1);
+        fetchBills(1, selectedStatusId); // reset to page 1
       })
       .catch((err) => {
         if (err.response?.status === 422) {
@@ -334,24 +383,73 @@ const page = () => {
   };
   const handleDownload = async (fullUrl) => {
     try {
-       setLabel("Downloading...");
+      setLabel("Downloading...");
       const fileName = fullUrl.split("/").pop(); // e.g., '1773834329_images.png'
       const downloadUrl = `public/api/master/billing/download/${fileName}`;
       const res = await api.get(downloadUrl, { responseType: 'blob' });
       const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = fileName; 
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
-       setLabel("Download");
+      setLabel("Download");
     } catch (error) {
       console.error("Download failed:", error);
       alert("Download failed. Please check authentication or file access.");
     }
   };
+  //=============================== preview image ========================================
+  const [filePreview, setFilePreview] = useState(null);
+
+  const handleChangeImage = (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+    setForm({ ...form, billing_documents: selectedFile });
+    const url = URL.createObjectURL(selectedFile);
+    setFilePreview({ url, type: selectedFile.type, name: selectedFile.name });
+  };
+  const removeFile = () => {
+    setForm({ ...form, billing_documents: null }); // remove from form
+    setFilePreview(null);
+    document.getElementById("fileInput").value = null;
+  };
+
+  //========================== update promsises =============================================
+  const [statusLoading, setStatusLoading] = useState(false);
+  const handleConfirmAction = async () => {
+    try {
+      setStatusLoading(true);
+      await updateBillStatus(confirmModal.id, confirmModal.action);
+      setConfirmModal({ open: false, action: null, id: null });
+      // optional: refresh list or update UI
+      fetchBills(1, selectedStatusId); // reset to page 1
+
+    } catch (err) {
+      toast.error("Something went wrong!");
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+  const updateBillStatus = async (id, action) => {
+    try {
+      const payload = {
+        status: action === "approve" ? "APPROVED" : "REJECTED",
+      };
+      const res = await api.post(`/public/api/master/bills/${id}/status`, payload);
+      toast.success(res.data.message || "Status updated successfully");
+      return res;
+    } catch (error) {
+      const message =
+        error?.response?.data?.message || "Status update failed";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+
   return (
     <div className="min-h-screen bg-gray-50 p-6 mt-12">
       {/* HEADER */}
@@ -389,30 +487,34 @@ const page = () => {
       </div>
 
       {/* TABS */}
-      <div className="flex gap-6 mb-4 text-sm font-medium">
-        <button
-          onClick={() => setActiveTab("All")}
-          className={`px-4 py-2 rounded-lg ${activeTab === "All"
+      <button
+        onClick={() => {
+          setActiveTab("All");
+          setSelectedStatusId(null); // no filter
+        }}
+        className={`px-4 py-2 mb-2 rounded-lg ${activeTab === "All"
             ? "bg-white shadow border border-gray-300"
             : "text-gray-500"
-            }`}
-        >
-          All
-        </button>
+          }`}
+      >
+        All
+      </button>
 
-        {statuses.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setActiveTab(s.name)}
-            className={`px-4 py-2 rounded-lg ${activeTab === s.name
+      {statuses.map((s) => (
+        <button
+          key={s.id}
+          onClick={() => {
+            setActiveTab(s.name);
+            setSelectedStatusId(s.id); // ✅ store id
+          }}
+          className={`px-4 py-2 mb-2 rounded-lg ${activeTab === s.name
               ? "bg-white shadow border border-gray-300"
               : "text-gray-500"
-              }`}
-          >
-            {s.name}
-          </button>
-        ))}
-      </div>
+            }`}
+        >
+          {s.name}
+        </button>
+      ))}
 
       {/* TABLE */}
       <div className="bg-white border border-gray-300 rounded-xl overflow-hidden">
@@ -487,7 +589,7 @@ const page = () => {
                       }}
                     />
 
-                    <button onClick={() => setOpenMenu(i)}>
+                    <button className="cursor-pointer" onClick={() => setOpenMenu(i)}>
                       <MoreVertical size={18} />
                     </button>
                     {openMenu === i && (
@@ -505,16 +607,36 @@ const page = () => {
                           onClick={() => handleDownload(b.billing_documents)}
                         />
 
-                        <MenuItem icon={<FileText size={16} />} label="View MB" onClick={() => {
-                          const link = document.createElement("a");
-                          link.href = b.billing_documents; // your URL
-                          link.download = ""; // optional, will use the default filename
-                          document.body.appendChild(link);
-                          link.click();
-                          link.remove();
-                        }} />
-                        <MenuItem icon={<CheckCircle size={16} />} label="Approve" green />
-                        <MenuItem icon={<XCircle size={16} />} label="Reject" red />
+                        <MenuItem
+                          icon={<FileText size={16} />}
+                          label="View MB"
+                          onClick={() => {
+                            if (b.billing_documents) {
+                              window.open(b.billing_documents, "_blank"); // open in new tab
+                            } else {
+                              alert("No file available");
+                            }
+                          }}
+                        />
+                        <MenuItem
+                          icon={<CheckCircle size={16} />}
+                          label="Approve"
+                          green
+                          onClick={() => {
+                            setSelectedBill(b); // store full bill or b.id
+                            setConfirmModal({ open: true, action: "approve", id: b.main_id });
+                          }}
+                        />
+
+                        <MenuItem
+                          icon={<XCircle size={16} />}
+                          label="Reject"
+                          red
+                          onClick={() => {
+                            setSelectedBill(b);
+                            setConfirmModal({ open: true, action: "reject", id: b.main_id });
+                          }}
+                        />
                       </div>
                     )}
                   </td>
@@ -539,7 +661,7 @@ const page = () => {
                 onClick={() => {
                   if (link.url) {
                     const page = new URL(link.url).searchParams.get("page");
-                    fetchBills(page);
+                    fetchBills(1, selectedStatusId); // reset to page 1
                   }
                 }}
                 className={`px-4 py-1.5 text-sm rounded-lg border transition duration-150
@@ -664,30 +786,53 @@ const page = () => {
                     </p>
                   )}
                 </div>
+                <div >
+                  <label className="text-sm font-medium text-gray-700">
+                    MB Reference
+                  </label>
 
-
-
-              </div>
-              <div className="col-span-2">
-                <label className="text-sm font-medium text-gray-700">
-                  MB Reference
-                </label>
-
-                <input
-                  type="text"
-                  name="mb_number"
-                  onChange={handleChange}
-                  placeholder="MB-2024-XXXX"
-                  className="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2
+                  <input
+                    type="text"
+                    name="mb_number"
+                    onChange={handleChange}
+                    placeholder="MB-2024-XXXX"
+                    className="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2
                     focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                  />
 
-                {errors.mb_number && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.mb_number[0]}
-                  </p>
-                )}
+                  {errors.mb_number && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.mb_number[0]}
+                    </p>
+                  )}
+                </div>
+                <div >
+                  <label className="text-sm font-medium text-gray-700">
+                    Billing Status
+                  </label>
+
+                  <select name="billing_status_id" onChange={handleChange}
+                    className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2
+                      focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option>Select Status</option>
+                    {
+                      //add here filter Only Show PENDING AND PAID add fileter
+                      statuses.filter(item => item.name === "PENDING" || item.name === "PAID").map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))
+                    }
+                  </select>
+                  {errors.billing_status_id && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.billing_status_id[0] ? 'The Billing Status field is required.' : ''}
+                    </p>
+                  )}
+                </div>
+
+
               </div>
+
 
               {/* Remarks */}
               <div>
@@ -710,21 +855,49 @@ const page = () => {
 
               {/* Upload box */}
               <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center 
+        cursor-pointer relative flex flex-col items-center justify-center"
                 onClick={() => document.getElementById("fileInput").click()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer"
+                style={{ minHeight: "150px" }}
               >
-                Upload bill documents
+                {filePreview ? (
+                  <>
+                    {filePreview.type.startsWith("image/") ? (
+                      <img
+                        src={filePreview.url}
+                        alt="Preview"
+                        className="max-h-40 object-contain"
+                      />
+                    ) : filePreview.type === "application/pdf" ? (
+                      <p className="text-gray-700">{filePreview.name}</p>
+                    ) : (
+                      <p className="text-gray-700">{filePreview.name}</p>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent opening file dialog
+                        removeFile();
+                      }}
+                      className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <p>Click here to upload bill documents</p>
+                )}
               </div>
 
               <input
                 id="fileInput"
                 type="file"
                 name="billing_documents"
-                onChange={handleChange}
+                onChange={handleChangeImage}
                 className="hidden"
               />
-            </div>
 
+
+            </div>
             {/* Footer buttons */}
             <div className="flex justify-end gap-3 mt-6">
               <button
@@ -838,21 +1011,38 @@ const page = () => {
               <p>{selectedBill.remarks}</p>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button className="border border-gray-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                <Download size={16} /> Download
+ 
+          </div>
+        </div>
+      )}
+      {/* Confirmed Model */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-80 text-center">
+            <h2 className="text-lg font-semibold mb-4">
+              Are you sure you want to {confirmModal.action} this bill?
+            </h2>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setConfirmModal({ ...confirmModal, open: false })}
+                className="px-4 py-2 border rounded-lg"
+              >
+                Cancel
               </button>
-              <button className="border border-red-300 text-red-600 px-4 py-2 rounded-lg flex items-center gap-2">
-                <XCircle size={16} /> Reject
-              </button>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                <CheckCircle size={16} /> Approve
+              <button
+                onClick={handleConfirmAction}
+                disabled={statusLoading}
+                className={`px-4 py-2 rounded-lg text-white ${confirmModal.action === "approve"
+                    ? "bg-green-600"
+                    : "bg-red-600"
+                  } ${statusLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                {statusLoading ? "Processing..." : "Yes"}
               </button>
             </div>
           </div>
         </div>
       )}
-
 
     </div>
   );
