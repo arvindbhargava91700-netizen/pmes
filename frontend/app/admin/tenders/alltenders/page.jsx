@@ -209,53 +209,31 @@ const TenderDashboard = () => {
         return "bg-gray-100 text-gray-600";
     }
   };
-  
-  
-    const getFileExtension = (mime) => {
-      switch (mime) {
-        case "application/pdf":
-          return ".pdf";
-        case "application/vnd.ms-excel":
-          return ".xls";
-        case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-          return ".xlsx";
-        case "image/png":
-          return ".png";
-        case "image/jpeg":
-          return ".jpg";
-        default:
-          return "";
-      }
-    };
+
   // file download
   const handleDownload = async (doc) => {
-  try {
-    const ext = getFileExtension(doc.mime_type);
-    const fileName = doc.file_name + ext;
+    try {
+      const baseURL = api.defaults.baseURL;
 
-    const res = await api.get(
-      `/public/api/tender/download/${doc.file_name}`,
-      {
-        responseType: "blob",
-      }
-    );
+      const fileUrl = `${baseURL}/${doc.file_path}/${doc.file_name}`;
 
-    const blob = new Blob([res.data], { type: doc.mime_type });
-    const url = window.URL.createObjectURL(blob);
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
 
-    document.body.appendChild(link);
-    link.click();
+      link.href = url;
+      link.download = doc.file_name;
+      document.body.appendChild(link);
+      link.click();
 
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error("Download failed:", error);
-  }
-};
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed", error);
+    }
+  };
 
   if (isPending) return <p className="p-8 mt-10">Loading...</p>;
   if (isError)
@@ -850,35 +828,39 @@ const TenderDashboard = () => {
                   <>
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 max-w-5xl mt-8">
                       <div className="space-y-3">
-                        {tenderDetails.documents.map((doc, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between p-4 bg-gray-50/50 rounded-xl group hover:bg-gray-100 transition-all duration-200"
-                          >
-                            <div className="flex items-center gap-4">
-                              {/* Blue Icon Container */}
-                              <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-                                <FileText size={20} />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-slate-800 text-sm">
-                                  {doc.file_name}
-                                </h4>
-                                <p className="text-gray-400 text-xs uppercase font-medium">
-                                  {doc.mime_type} • {doc.file_size} kb
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() =>
-                                handleDownload(doc.file_url, doc.file_name)
-                              }
-                              className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                        {tenderDetails?.documents?.length > 0 ? (
+                          tenderDetails.documents.map((doc, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between p-4 bg-gray-50/50 rounded-xl group hover:bg-gray-100 transition-all duration-200"
                             >
-                              <Download size={18} />
-                            </button>
-                          </div>
-                        ))}
+                              <div className="flex items-center gap-4">
+                                {/* Blue Icon Container */}
+                                <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
+                                  <FileText size={20} />
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-800 text-sm">
+                                    {doc.file_name}
+                                  </h4>
+                                  <p className="text-gray-400 text-xs uppercase font-medium">
+                                    {doc.mime_type} • {doc.file_size} kb
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDownload(doc)}
+                                className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                              >
+                                <Download size={18} />
+                              </button>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-center text-gray-400 py-6">
+                            No documents available
+                          </p>
+                        )}
                       </div>
                     </div>
                   </>
