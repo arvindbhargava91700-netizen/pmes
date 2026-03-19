@@ -80,7 +80,10 @@ export default function TenderDetails() {
 
   // create tender
   const createTender = async (data) => {
-    const res = await api.post("/public/api/tender", data);
+    const res = await api.post("/public/api/tender", data, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+    
     return res.data;
   };
 
