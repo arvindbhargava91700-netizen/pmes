@@ -209,23 +209,43 @@ const TenderDashboard = () => {
         return "bg-gray-100 text-gray-600";
     }
   };
-
+  
+  
+    const getFileExtension = (mime) => {
+      switch (mime) {
+        case "application/pdf":
+          return ".pdf";
+        case "application/vnd.ms-excel":
+          return ".xls";
+        case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+          return ".xlsx";
+        case "image/png":
+          return ".png";
+        case "image/jpeg":
+          return ".jpg";
+        default:
+          return "";
+      }
+    };
   // file download
   const handleDownload = async (doc) => {
   try {
-    const baseURL = api.defaults.baseURL;
-    const fileUrl = `${baseURL}/${doc.file_path}/${doc.file_name}`;
+    const ext = getFileExtension(doc.mime_type);
+    const fileName = doc.file_name + ext;
 
-    const response = await api.get(fileUrl, {
-      responseType: "blob", // 🔥 IMPORTANT
-    });
+    const res = await api.get(
+      `/public/api/tender/download/${doc.file_name}`,
+      {
+        responseType: "blob",
+      }
+    );
 
-    const blob = new Blob([response.data]);
+    const blob = new Blob([res.data], { type: doc.mime_type });
     const url = window.URL.createObjectURL(blob);
 
     const link = document.createElement("a");
     link.href = url;
-    link.download = doc.file_name;
+    link.download = fileName;
 
     document.body.appendChild(link);
     link.click();
@@ -233,7 +253,7 @@ const TenderDashboard = () => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error("Download failed", error);
+    console.error("Download failed:", error);
   }
 };
 
@@ -850,7 +870,9 @@ const TenderDashboard = () => {
                               </div>
                             </div>
                             <button
-                              onClick={() => handleDownload(doc)}
+                              onClick={() =>
+                                handleDownload(doc.file_url, doc.file_name)
+                              }
                               className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
                             >
                               <Download size={18} />
