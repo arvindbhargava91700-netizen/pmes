@@ -97,35 +97,7 @@ const page = () => {
       console.error("Error fetching statuses:", error);
     }
   };
-  const fetchBills_old = async (page = 1) => {
-    try {
-      setLoading(true);
-      const res = await api.get(`public/api/master/billings?page=${page}`);
-      const paginated = res.data?.data;
-      const formatted = (paginated?.data || []).map((item) => ({
-        main_id: item.id,
-        id: item.bill_number,
-        project: item.project?.project_name || "-",
-        contractor: item.project?.project_description || "-",
-        milestone: item.milestone?.name || "-",
-        amount: Number(item.amount),
-        mb: item.mb_number || "-",
-        date: item.bill_date || "-",
-        remarks: item.remarks || "-",
-        status: item.status?.name || "UNDER REVIEW",
-        statusColor: item.status?.color,
-        billing_documents: item.billing_documents || "-",
-      }));
-      setBills(formatted);
-      setPagination(paginated);   // ✅ store full pagination
-      setCurrentPage(paginated.current_page);
 
-    } catch (error) {
-      console.error("Error fetching bills:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchBills = async (page = 1, statusId = null) => {
     try {
@@ -398,6 +370,7 @@ const page = () => {
       setLabel("Download");
     } catch (error) {
       console.error("Download failed:", error);
+      setLabel("Download");
       alert("Download failed. Please check authentication or file access.");
     }
   };
