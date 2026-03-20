@@ -81,9 +81,9 @@ export default function TenderDetails() {
   // create tender
   const createTender = async (data) => {
     const res = await api.post("/public/api/tender", data, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-    
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
     return res.data;
   };
 
@@ -178,38 +178,44 @@ export default function TenderDetails() {
     is_critical: Number(m.is_critical),
   }));
 
-const handleSubmit = () => {
-  const formDataToSend = new FormData();
+  const handleSubmit = () => {
+    const formDataToSend = new FormData();
 
-  // basic fields
-  Object.keys(formData).forEach((key) => {
-    formDataToSend.append(key, formData[key]);
-  });
+    // basic fields
+    Object.keys(formData).forEach((key) => {
+      formDataToSend.append(key, formData[key]);
+    });
 
-  // milestones (important) again push
-formattedMilestones.forEach((m, index) => {
-  formDataToSend.append(`milestones[${index}][sequence_no]`, m.sequence_no);
-  formDataToSend.append(`milestones[${index}][milestone_title]`, m.milestone_title);
-  formDataToSend.append(`milestones[${index}][duration_weeks]`, m.duration_weeks);
-  formDataToSend.append(`milestones[${index}][description]`, m.description);
-  formDataToSend.append(`milestones[${index}][is_critical]`, m.is_critical);
+    // milestones (important) again push
+    formattedMilestones.forEach((m, index) => {
+      formDataToSend.append(`milestones[${index}][sequence_no]`, m.sequence_no);
+      formDataToSend.append(
+        `milestones[${index}][milestone_title]`,
+        m.milestone_title
+      );
+      formDataToSend.append(
+        `milestones[${index}][duration_weeks]`,
+        m.duration_weeks
+      );
+      formDataToSend.append(`milestones[${index}][description]`, m.description);
+      formDataToSend.append(`milestones[${index}][is_critical]`, m.is_critical);
 
-  // dependencies array
-  m.dependencies.forEach((dep, dIndex) => {
-    formDataToSend.append(
-      `milestones[${index}][dependencies][${dIndex}]`,
-      dep
-    );
-  });
-});
+      // dependencies array
+      m.dependencies.forEach((dep, dIndex) => {
+        formDataToSend.append(
+          `milestones[${index}][dependencies][${dIndex}]`,
+          dep
+        );
+      });
+    });
 
-  // ✅ append files
-  documents.forEach((file) => {
-    formDataToSend.append("documents[]", file);
-  });
+    // ✅ append files
+    documents.forEach((file) => {
+      formDataToSend.append("documents[]", file);
+    });
 
-  mutate(formDataToSend);
-};
+    mutate(formDataToSend);
+  };
 
   // project_duration_weeks
   const calculateDuration = (start, end) => {
@@ -249,9 +255,9 @@ formattedMilestones.forEach((m, index) => {
     processFiles(files);
   };
 
-const processFiles = (files) => {
-  setDocuments((prev) => [...prev, ...files]); // store actual File objects
-};
+  const processFiles = (files) => {
+    setDocuments((prev) => [...prev, ...files]); // store actual File objects
+  };
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -772,19 +778,19 @@ const processFiles = (files) => {
                   >
                     <div className="flex items-center gap-3">
                       <div className="bg-blue-50 p-2 rounded-lg text-blue-600 text-xs font-bold">
-                     {  doc.type?.split("/")[1]?.toUpperCase()}
+                        {doc.type?.split("/")[1]?.toUpperCase()}
                       </div>
 
                       <div>
                         <p className="text-sm font-semibold text-gray-800">
                           {doc.file_name}
                         </p>
-                      <p className="text-sm font-semibold text-gray-800">
-  {doc.name}
-</p>
-<p className="text-[10px] text-gray-400 uppercase">
-  {(doc.size / 1024).toFixed(1)} KB
-</p>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {doc.name}
+                        </p>
+                        <p className="text-[10px] text-gray-400 uppercase">
+                          {(doc.size / 1024).toFixed(1)} KB
+                        </p>
                       </div>
                     </div>
 
