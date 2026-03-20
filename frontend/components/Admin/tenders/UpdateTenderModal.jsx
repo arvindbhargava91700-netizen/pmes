@@ -31,6 +31,7 @@ const UpdateTenderModal = ({ isOpen, onClose, tenderDetails }) => {
           "",
         milestones: (tenderDetails.milestones || []).map((m) => ({
           ...m,
+          milestone_title:  m.milestone_title || m.title || m.name || "",
           dependencies: Array.isArray(m.dependencies) ? m.dependencies : [],
         })),
         documents: tenderDetails.documents || [],
@@ -91,11 +92,23 @@ const UpdateTenderModal = ({ isOpen, onClose, tenderDetails }) => {
   const updateTender = async () => {
     const payload = {
       ...form,
-
       department_id: Number(form.department_id) || null,
       work_type_id: Number(form.work_type_id) || null,
       tender_status_id: 1,
       is_locked: 0,
+
+      milestones: form.milestones.map((m) => ({
+        id: m.id,
+        sequence_no: m.sequence_no,
+        milestone_title: m.milestone_title,
+        duration_weeks: m.duration_weeks,
+        is_critical: m.is_critical,
+        dependencies: m.dependencies,
+      })),
+
+      department: undefined,
+      workType: undefined,
+      timeline: undefined,
     };
 
     const res = await api.put(`/public/api/tender/${form.id}`, payload);
@@ -334,7 +347,7 @@ const UpdateTenderModal = ({ isOpen, onClose, tenderDetails }) => {
                     Milestones Title
                   </label>
                   <Input
-                    value={m.milestone_title}
+                    value={m.milestone_title || ""}
                     onChange={(e) =>
                       handleMilestoneChange(
                         i,

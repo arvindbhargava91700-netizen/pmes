@@ -35,7 +35,6 @@ const getTextColor = (bgColor) => {
   const r = parseInt(color.substring(0, 2), 16);
   const g = parseInt(color.substring(2, 4), 16);
   const b = parseInt(color.substring(4, 6), 16);
-
   const brightness = (r * 299 + g * 587 + b * 114) / 1000;
   return brightness > 125 ? "#000" : "#fff";
 };
@@ -48,7 +47,6 @@ const page = () => {
   const [selectedStatusId, setSelectedStatusId] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
   const [openModal, setOpenModal] = useState(false);
-  //   const [openModal, setOpenModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [openSubmitModal, setOpenSubmitModal] = useState(false);
   const [form, setForm] = useState({
@@ -56,7 +54,7 @@ const page = () => {
     milestone_id: "",
     amount: "",
     mb_number: "",
-    bill_date: getTodayDate(), // ✅ auto today
+    bill_date: getTodayDate(),
     billing_status_id: "",
     remarks: "",
     billing_documents: null,
@@ -269,6 +267,7 @@ const page = () => {
       "Bills.xlsx"
     );
   };
+  
   const handleCopy = () => {
     navigator.clipboard.writeText(JSON.stringify(bills));
     alert("Copied!");
