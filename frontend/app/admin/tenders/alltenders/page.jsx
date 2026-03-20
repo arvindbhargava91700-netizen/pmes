@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import Swal from "sweetalert2";
+import React, { useState } from "react";
 import {
   FileText,
   Clock,
@@ -21,11 +22,14 @@ import {
   LayoutGrid,
   Milestone,
   UsersIcon,
+  PenIcon,
 } from "lucide-react";
 import api from "@/components/Api/privetApi";
 import { useQuery } from "@tanstack/react-query";
 import SelectInput from "@/components/selectInput";
 import { useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 
 const tabs = [
   { id: "details", label: "Details", icon: LayoutGrid },
@@ -179,6 +183,40 @@ const TenderDashboard = () => {
 
     setSelectedStatus("All Status");
     setSelectedDepartments("All Departments");
+  };
+
+  // deleteTender
+  const deleteTender = async (id) => {
+    const res = await api.delete(`/public/api/tender/${id}`);
+    return res.data;
+  };
+
+  const queryClient = useQueryClient();
+
+  const { mutate: deleteMutate } = useMutation({
+    mutationFn: deleteTender,
+    onSuccess: (data) => {
+      toast.success(data?.message || "Tender deleted");
+      queryClient.invalidateQueries(["tenderList"]);
+    },
+    onError: () => {
+      toast.error("Delete failed");
+    },
+  });
+
+  const handleDelete = (id) => {
+    Swal.fire({
+      title: "Are you sure?",
+      text: "This tender will be deleted permanently!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      confirmButtonText: "Yes, delete it!",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        deleteMutate(id);
+      }
+    });
   };
 
   // fetchTenderById
@@ -400,7 +438,7 @@ const TenderDashboard = () => {
               <th className="p-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Bids
               </th>
-              <th className="p-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">
+              <th className="p-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
                 Actions
               </th>
             </tr>
@@ -437,7 +475,7 @@ const TenderDashboard = () => {
                   </td>
                   <td className="p-4">
                     <span
-                      className={`rounded-full py-1 px-3 text-nowrap flex justify-center items-center gap-1 text-[10px] font-bold tracking-wide uppercase`}
+                      className={`rounded-full text-white py-1 px-3 text-nowrap flex justify-center items-center gap-1 text-[10px] font-bold tracking-wide uppercase`}
                       style={{ backgroundColor: t.status_color }}
                     >
                       {/* {t.icon} */}
@@ -459,12 +497,18 @@ const TenderDashboard = () => {
                           setSelectedId(t.id);
                           setIsModalOpen(true);
                         }}
-                        className="hover:text-blue-600 h-8 w-8 hover:bg-zinc-200 flex justify-center items-center rounded-lg cursor-pointer"
+                        className="hover:text-blue-600 h-8 w-8 hover:bg-zinc-100 flex justify-center items-center rounded-lg cursor-pointer"
                       >
                         <Eye size={18} />
                       </button>
-                      <button className="hover:text-blue-600 h-8 w-8 hover:bg-zinc-200 flex justify-center items-center rounded-lg cursor-pointer">
-                        <MoreHorizontal size={18} />
+                      <button className="hover:text-green-600 h-8 w-8 hover:bg-zinc-100 flex justify-center items-center rounded-lg cursor-pointer">
+                        <PenIcon size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        className="hover:text-red-600 h-8 w-8 hover:bg-zinc-100 flex justify-center items-center rounded-lg cursor-pointer"
+                      >
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   </td>
@@ -487,7 +531,7 @@ const TenderDashboard = () => {
           >
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-3 right-4 text-gray-400 hover:text-red-500"
+              className="absolute top-3 right-4 text-gray-400 hover:text-red-500 cursor-pointer"
             >
               ✕
             </button>
@@ -610,7 +654,7 @@ const TenderDashboard = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="md:col-span-2 space-y-6">
                           <div className="bg-white p-5 rounded-2xl border border-gray-100">
-                            <h2 className="text-lg font-semibold mb-3">
+                            <h2 className="text-lg font-semibold">
                               Description
                             </h2>
                             <p className="text-gray-500 leading-relaxed">
@@ -628,7 +672,7 @@ const TenderDashboard = () => {
                                 <p className="text-gray-400 text-sm mb-1">
                                   Start Date
                                 </p>
-                                <p className="font-semibold text-lg">
+                                <p className="font-semibold">
                                   {startDate
                                     ? new Date(startDate).toLocaleDateString(
                                         "en-IN"
@@ -640,7 +684,7 @@ const TenderDashboard = () => {
                                 <p className="text-gray-400 text-sm mb-1">
                                   End Date
                                 </p>
-                                <p className="font-semibold text-lg">
+                                <p className="font-semibold">
                                   {endDate
                                     ? new Date(endDate).toLocaleDateString(
                                         "en-IN"
@@ -652,7 +696,7 @@ const TenderDashboard = () => {
                                 <p className="text-gray-400 text-sm mb-1">
                                   Duration
                                 </p>
-                                <p className="font-semibold text-lg">
+                                <p className="font-semibold">
                                   {timeline?.project_duration_weeks
                                     ? `${timeline.project_duration_weeks} weeks`
                                     : "-"}
@@ -662,28 +706,34 @@ const TenderDashboard = () => {
                           </div>
                         </div>
 
-                        <div className="bg-white p-8 rounded-2xl border border-gray-100">
+                        <div className="bg-white p-5 rounded-2xl border border-gray-100">
                           <h2 className="text-lg font-semibold mb-6">
                             Tender Information
                           </h2>
                           <div className="space-y-5">
                             <div className="flex justify-between items-center">
-                              <span className="text-gray-400">Department</span>
-                              <span className="font-semibold text-right">
+                              <span className="text-gray-400 text-sm">
+                                Department
+                              </span>
+                              <span className="font-semibold text-right text-sm">
                                 {tenderDetails?.department || "N/A"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-gray-400">Work Type</span>
-                              <span className="font-semibold text-right">
+                              <span className="text-gray-400 text-sm">
+                                Work Type
+                              </span>
+                              <span className="font-semibold text-right text-sm">
                                 {tenderDetails?.tender_id ||
                                   tenderDetails?.tender_code ||
                                   "-"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-gray-400">EMD Amount</span>
-                              <span className="font-semibold text-right">
+                              <span className="text-gray-400 text-sm">
+                                EMD Amount
+                              </span>
+                              <span className="font-semibold text-right text-sm">
                                 {tenderDetails?.emd_amount
                                   ? `₹ ${Number(
                                       tenderDetails.emd_amount
@@ -692,10 +742,10 @@ const TenderDashboard = () => {
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-gray-400">
+                              <span className="text-gray-400 text-sm">
                                 Publish Date
                               </span>
-                              <span className="font-semibold text-right">
+                              <span className="font-semibold text-right text-sm">
                                 {tenderDetails?.status || "-"}
                               </span>
                             </div>
@@ -729,14 +779,41 @@ const TenderDashboard = () => {
                                   {item.title}
                                 </h3>
                                 <p className="text-gray-600 text-sm">
-                                  Duration: {item.duration_weeks}
+                                  Duration: {item.duration_weeks} weeks
                                 </p>
+                                <p className="text-gray-600 text-sm">
+                                  Description:{" "}
+                                  {item.description ||
+                                    "No description provided for this milestone."}
+                                </p>
+
+                                {/* Dependencies Chips */}
+                                {item.dependencies?.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 items-center">
+                                    <span className="text-slate-400 text-xs font-medium italic">
+                                      Depends on:
+                                    </span>
+                                    {item.dependencies.map(
+                                      (dep, idx) =>
+                                        dep.title && (
+                                          <span
+                                            key={idx}
+                                            className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200"
+                                          >
+                                            {dep.title}
+                                          </span>
+                                        )
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
-                            <div className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
-                              {item.is_critical}
-                            </div>
+                            {item.is_critical === 1 && (
+                              <span className="flex items-center gap-1 text-white bg-red-600 px-2 py-1 rounded-md text-[10px] font-bold">
+                                <AlertTriangle size={12} /> CRITICAL
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>

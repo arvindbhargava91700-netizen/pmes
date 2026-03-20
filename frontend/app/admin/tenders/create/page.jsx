@@ -192,6 +192,7 @@ export default function TenderDetails() {
         milestones: formattedMilestones,
         documents,
       };
+
       mutate(payload);
     } catch (err) {
       console.error(err);
@@ -244,7 +245,7 @@ export default function TenderDetails() {
       mime_type: file.type,
     }));
 
-    setDocuments((prev) => [...prev, ...files]);
+    setDocuments((prev) => [...prev, ...formatted]);
   };
 
   const handleFileChange = (e) => {
@@ -571,7 +572,7 @@ export default function TenderDetails() {
                   <label className="text-sm font-medium">
                     Project Duration
                   </label>
-                  <div className="mt-2 flex items-center gap-2 px-3 py-2 border border-zinc-100 rounded-xl bg-gray-50">
+                  <div className="mt-2 flex items-center gap-2 px-3 py-1 border border-zinc-100 rounded-xl bg-gray-50">
                     <span className="text-lg font-semibold">
                       {formData.project_duration_weeks || 0}
                     </span>
@@ -766,15 +767,18 @@ export default function TenderDetails() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="bg-blue-50 p-2 rounded-lg text-blue-600 text-xs font-bold">
-                         {(doc.type || doc.mime_type)?.split("/")[1]?.toUpperCase() || "FILE"}
+                        {doc.mime_type.split("/")[1]?.toUpperCase()}
                       </div>
 
                       <div>
                         <p className="text-sm font-semibold text-gray-800">
                           {doc.file_name}
                         </p>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {doc.name}
+                        </p>
                         <p className="text-[10px] text-gray-400 uppercase">
-                          {(doc.file_size / 1024).toFixed(1)} KB
+                          {(doc.size / 1024).toFixed(1)} KB
                         </p>
                       </div>
                     </div>
