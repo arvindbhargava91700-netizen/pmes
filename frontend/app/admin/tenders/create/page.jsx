@@ -186,7 +186,7 @@ const handleSubmit = () => {
     formDataToSend.append(key, formData[key]);
   });
 
-  // milestones (important)
+  // milestones (important) again push
 formattedMilestones.forEach((m, index) => {
   formDataToSend.append(`milestones[${index}][sequence_no]`, m.sequence_no);
   formDataToSend.append(`milestones[${index}][milestone_title]`, m.milestone_title);
