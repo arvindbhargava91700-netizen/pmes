@@ -30,6 +30,7 @@ import SelectInput from "@/components/selectInput";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import UpdateTenderModal from "@/components/Admin/tenders/UpdateTenderModal";
 
 const tabs = [
   { id: "details", label: "Details", icon: LayoutGrid },
@@ -82,6 +83,8 @@ const TenderDashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("All Status");
+  const [isUpdateOpen, setIsUpdateOpen] = useState(false);
+  const [selectedTender, setSelectedTender] = useState(null);
   const [activeTab, setActiveTab] = useState("details");
   const [selectedDepartments, setSelectedDepartments] =
     useState("All Departments");
@@ -228,7 +231,7 @@ const TenderDashboard = () => {
   const { data: tenderDetails, isLoading } = useQuery({
     queryKey: ["tender-details", selectedId],
     queryFn: fetchTenderById,
-    enabled: !!selectedId && isModalOpen,
+    enabled: !!selectedId && isUpdateOpen,
   });
 
   const timeline = tenderDetails?.timeline;
@@ -501,7 +504,13 @@ const TenderDashboard = () => {
                       >
                         <Eye size={18} />
                       </button>
-                      <button className="hover:text-green-600 h-8 w-8 hover:bg-zinc-100 flex justify-center items-center rounded-lg cursor-pointer">
+                      <button
+                        onClick={() => {
+                          setSelectedId(t.id);
+                          setIsUpdateOpen(true);
+                        }}
+                        className="hover:text-green-600 h-8 w-8 hover:bg-zinc-100 flex justify-center items-center rounded-lg cursor-pointer"
+                      >
                         <PenIcon size={18} />
                       </button>
                       <button
@@ -724,9 +733,7 @@ const TenderDashboard = () => {
                                 Work Type
                               </span>
                               <span className="font-semibold text-right text-sm">
-                                {tenderDetails?.tender_id ||
-                                  tenderDetails?.tender_code ||
-                                  "-"}
+                                {tenderDetails?.workType || "-"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
@@ -947,6 +954,15 @@ const TenderDashboard = () => {
           </div>
         </div>
       )}
+
+      <UpdateTenderModal
+        isOpen={isUpdateOpen}
+        onClose={() => {
+          setIsUpdateOpen(false);
+          setSelectedId(null);
+        }}
+        tenderDetails={tenderDetails}
+      />
     </div>
   );
 };
