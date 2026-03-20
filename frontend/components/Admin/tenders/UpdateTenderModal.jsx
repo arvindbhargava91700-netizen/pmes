@@ -1,7 +1,7 @@
 // UpdateTenderModal.jsx
 "use client";
 import React, { useEffect, useState } from "react";
-import { FileText, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/components/Api/privetApi";
 import toast from "react-hot-toast";
@@ -15,31 +15,24 @@ const UpdateTenderModal = ({ isOpen, onClose, tenderDetails }) => {
     if (tenderDetails) {
       setForm({
         ...tenderDetails,
-
         department_id: tenderDetails.department_id
           ? String(tenderDetails.department_id)
           : "",
-
         work_type_id: tenderDetails.work_type_id
           ? String(tenderDetails.work_type_id)
           : "",
-
         start_date:
           tenderDetails.start_date || tenderDetails.timeline?.start_date || "",
-
         end_date:
           tenderDetails.end_date || tenderDetails.timeline?.end_date || "",
-
         project_duration_weeks:
           tenderDetails.project_duration_weeks ||
           tenderDetails.timeline?.project_duration_weeks ||
           "",
-
         milestones: (tenderDetails.milestones || []).map((m) => ({
           ...m,
           dependencies: Array.isArray(m.dependencies) ? m.dependencies : [],
         })),
-
         documents: tenderDetails.documents || [],
       });
     }
@@ -96,7 +89,16 @@ const UpdateTenderModal = ({ isOpen, onClose, tenderDetails }) => {
 
   //   update tander
   const updateTender = async () => {
-    const res = await api.put(`/public/api/tender/${form.id}`, form);
+    const payload = {
+      ...form,
+
+      department_id: Number(form.department_id) || null,
+      work_type_id: Number(form.work_type_id) || null,
+      tender_status_id: 1,
+      is_locked: 0,
+    };
+
+    const res = await api.put(`/public/api/tender/${form.id}`, payload);
     return res.data;
   };
 
@@ -157,11 +159,7 @@ const UpdateTenderModal = ({ isOpen, onClose, tenderDetails }) => {
               <div className="grid grid-cols-1 gap-1">
                 <label className="text-sm font-medium">Department *</label>
                 <select
-                   value={
-    tenderDepartments.find(
-      (dept) => String(dept.id) === String(form.department_id)
-    )?.id || ""
-  }
+                  value={form.department_id || ""}
                   onChange={(e) =>
                     setForm({
                       ...form,
@@ -238,15 +236,30 @@ const UpdateTenderModal = ({ isOpen, onClose, tenderDetails }) => {
               <label htmlFor="schedule_type" className="text-zinc-700">
                 Schedule Type
               </label>
-              <Input
+              {/* <Input
                 name="schedule_type"
                 value={form.timeline.schedule_type}
                 onChange={handleChange}
-              />
+              /> */}
+              <select
+                value={form.timeline.schedule_type || ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    schedule_type: e.target.value,
+                  })
+                }
+                className="w-full border border-zinc-300 rounded-lg px-4 py-2 bg-gray-50"
+              >
+                <option>Select work type</option>
+                <option value="monthly">Monthly</option>
+                <option value="weekly">Weekly</option>
+                <option value="daily">Daily</option>
+              </select>
             </div>
             <div>
               <label htmlFor="project_duration_weeks" className="text-zinc-700">
-                Project Duration
+                Project Duration (week)
               </label>
               <Input
                 name="project_duration_weeks"
@@ -321,7 +334,7 @@ const UpdateTenderModal = ({ isOpen, onClose, tenderDetails }) => {
                     Milestones Title
                   </label>
                   <Input
-                    value={m.title}
+                    value={m.milestone_title}
                     onChange={(e) =>
                       handleMilestoneChange(
                         i,

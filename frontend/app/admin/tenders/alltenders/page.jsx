@@ -84,7 +84,6 @@ const TenderDashboard = () => {
   const [selectedId, setSelectedId] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [isUpdateOpen, setIsUpdateOpen] = useState(false);
-  const [selectedTender, setSelectedTender] = useState(null);
   const [activeTab, setActiveTab] = useState("details");
   const [selectedDepartments, setSelectedDepartments] =
     useState("All Departments");
@@ -172,7 +171,7 @@ const TenderDashboard = () => {
 
     const matchDepartment =
       appliedFilters.department === "All Departments" ||
-      t.department?.toLowerCase().trim() ===
+      t.department?.name?.toLowerCase().trim() ===
         appliedFilters.department.toLowerCase().trim();
 
     return matchSearch && matchStatus && matchDepartment;
@@ -231,7 +230,7 @@ const TenderDashboard = () => {
   const { data: tenderDetails, isLoading } = useQuery({
     queryKey: ["tender-details", selectedId],
     queryFn: fetchTenderById,
-    enabled: !!selectedId && isUpdateOpen,
+    enabled: !!selectedId,
   });
 
   const timeline = tenderDetails?.timeline;
@@ -470,7 +469,7 @@ const TenderDashboard = () => {
                   <td className="p-4">
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <MapPin size={14} className="text-slate-400" />{" "}
-                      {t.department || "--"}
+                      {t.department?.name || "--"}
                     </div>
                   </td>
                   <td className="p-4 text-sm font-semibold text-slate-700">
@@ -725,7 +724,7 @@ const TenderDashboard = () => {
                                 Department
                               </span>
                               <span className="font-semibold text-right text-sm">
-                                {tenderDetails?.department || "N/A"}
+                                {tenderDetails?.department?.name || "N/A"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
@@ -733,7 +732,7 @@ const TenderDashboard = () => {
                                 Work Type
                               </span>
                               <span className="font-semibold text-right text-sm">
-                                {tenderDetails?.workType || "-"}
+                                {tenderDetails?.workType?.workType || "-"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
