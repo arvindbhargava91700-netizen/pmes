@@ -178,38 +178,44 @@ export default function TenderDetails() {
     is_critical: Number(m.is_critical),
   }));
 
-const handleSubmit = () => {
-  const formDataToSend = new FormData();
+  const handleSubmit = () => {
+    const formDataToSend = new FormData();
 
-  // basic fields
-  Object.keys(formData).forEach((key) => {
-    formDataToSend.append(key, formData[key]);
-  });
+    // basic fields
+    Object.keys(formData).forEach((key) => {
+      formDataToSend.append(key, formData[key]);
+    });
 
-  // milestones (important)
-formattedMilestones.forEach((m, index) => {
-  formDataToSend.append(`milestones[${index}][sequence_no]`, m.sequence_no);
-  formDataToSend.append(`milestones[${index}][milestone_title]`, m.milestone_title);
-  formDataToSend.append(`milestones[${index}][duration_weeks]`, m.duration_weeks);
-  formDataToSend.append(`milestones[${index}][description]`, m.description);
-  formDataToSend.append(`milestones[${index}][is_critical]`, m.is_critical);
+    // milestones (important) again push
+    formattedMilestones.forEach((m, index) => {
+      formDataToSend.append(`milestones[${index}][sequence_no]`, m.sequence_no);
+      formDataToSend.append(
+        `milestones[${index}][milestone_title]`,
+        m.milestone_title
+      );
+      formDataToSend.append(
+        `milestones[${index}][duration_weeks]`,
+        m.duration_weeks
+      );
+      formDataToSend.append(`milestones[${index}][description]`, m.description);
+      formDataToSend.append(`milestones[${index}][is_critical]`, m.is_critical);
 
-  // dependencies array
-  m.dependencies.forEach((dep, dIndex) => {
-    formDataToSend.append(
-      `milestones[${index}][dependencies][${dIndex}]`,
-      dep
-    );
-  });
-});
+      // dependencies array
+      m.dependencies.forEach((dep, dIndex) => {
+        formDataToSend.append(
+          `milestones[${index}][dependencies][${dIndex}]`,
+          dep
+        );
+      });
+    });
 
-  // ✅ append files
-  documents.forEach((file) => {
-    formDataToSend.append("documents[]", file);
-  });
+    // ✅ append files
+    documents.forEach((file) => {
+      formDataToSend.append("documents[]", file);
+    });
 
-  mutate(formDataToSend);
-};
+    mutate(formDataToSend);
+  };
 
   // project_duration_weeks
   const calculateDuration = (start, end) => {
@@ -250,14 +256,7 @@ formattedMilestones.forEach((m, index) => {
   };
 
   const processFiles = (files) => {
-    const formatted = files.map((file) => ({
-      file_name: file.name,
-      file_path: "uploads/temp",
-      file_size: String(file.size),
-      mime_type: file.type,
-    }));
-
-    setDocuments((prev) => [...prev, ...formatted]);
+    setDocuments((prev) => [...prev, ...files]); // store actual File objects
   };
 
   const handleFileChange = (e) => {
@@ -584,7 +583,7 @@ formattedMilestones.forEach((m, index) => {
                   <label className="text-sm font-medium">
                     Project Duration
                   </label>
-                  <div className="mt-2 flex items-center gap-2 px-3 py-1 border border-zinc-100 rounded-xl bg-gray-50">
+                  <div className="mt-2 flex items-center gap-2 px-3 py-2 border border-zinc-100 rounded-xl bg-gray-50">
                     <span className="text-lg font-semibold">
                       {formData.project_duration_weeks || 0}
                     </span>
@@ -779,7 +778,7 @@ formattedMilestones.forEach((m, index) => {
                   >
                     <div className="flex items-center gap-3">
                       <div className="bg-blue-50 p-2 rounded-lg text-blue-600 text-xs font-bold">
-                        {doc.mime_type.split("/")[1]?.toUpperCase()}
+                        {doc.type?.split("/")[1]?.toUpperCase()}
                       </div>
 
                       <div>
