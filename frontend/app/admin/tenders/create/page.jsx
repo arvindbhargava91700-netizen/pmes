@@ -178,26 +178,38 @@ export default function TenderDetails() {
     is_critical: Number(m.is_critical),
   }));
 
-  const handleSubmit = async () => {
-    try {
-      const payload = {
-        ...formData,
-        department_id: formData.department_id,
-        work_type_id: formData.work_type_id,
-        estimated_cost: formData.estimated_cost,
-        emd_amount: formData.emd_amount,
-        schedule_type: formData.schedule_type,
-        project_duration_weeks: Number(formData.project_duration_weeks),
+const handleSubmit = () => {
+  const formDataToSend = new FormData();
 
-        milestones: formattedMilestones,
-        documents,
-      };
+  // basic fields
+  Object.keys(formData).forEach((key) => {
+    formDataToSend.append(key, formData[key]);
+  });
 
-      mutate(payload);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // milestones (important)
+formattedMilestones.forEach((m, index) => {
+  formDataToSend.append(`milestones[${index}][sequence_no]`, m.sequence_no);
+  formDataToSend.append(`milestones[${index}][milestone_title]`, m.milestone_title);
+  formDataToSend.append(`milestones[${index}][duration_weeks]`, m.duration_weeks);
+  formDataToSend.append(`milestones[${index}][description]`, m.description);
+  formDataToSend.append(`milestones[${index}][is_critical]`, m.is_critical);
+
+  // dependencies array
+  m.dependencies.forEach((dep, dIndex) => {
+    formDataToSend.append(
+      `milestones[${index}][dependencies][${dIndex}]`,
+      dep
+    );
+  });
+});
+
+  // ✅ append files
+  documents.forEach((file) => {
+    formDataToSend.append("documents[]", file);
+  });
+
+  mutate(formDataToSend);
+};
 
   // project_duration_weeks
   const calculateDuration = (start, end) => {
