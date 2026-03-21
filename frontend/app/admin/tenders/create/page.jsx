@@ -567,6 +567,7 @@ export default function TenderDetails() {
                     }
                     className="w-full mt-2 px-3 py-2 border border-zinc-100 rounded-xl text-sm bg-gray-50 focus:outline-none"
                   >
+                    <option>Select work type</option>
                     <option value="monthly">Monthly</option>
                     <option value="weekly">Weekly</option>
                     <option value="daily">Daily</option>

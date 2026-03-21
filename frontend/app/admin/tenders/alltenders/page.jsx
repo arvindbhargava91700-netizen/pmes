@@ -1,5 +1,9 @@
 "use client";
 import Swal from "sweetalert2";
+import jsPDF from "jspdf";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import autoTable from "jspdf-autotable";
 import React, { useState } from "react";
 import {
   FileText,
@@ -30,6 +34,8 @@ import SelectInput from "@/components/selectInput";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import UpdateTenderModal from "@/components/Admin/tenders/UpdateTenderModal";
+import { useEffect, useRef } from "react";
 
 const tabs = [
   { id: "details", label: "Details", icon: LayoutGrid },
@@ -78,10 +84,15 @@ const bids = [
 
 const TenderDashboard = () => {
   const router = useRouter();
+  const dropdownRef = useRef();
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("All Status");
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isUpdateOpen, setIsUpdateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [selectedDepartments, setSelectedDepartments] =
     useState("All Departments");
@@ -91,19 +102,21 @@ const TenderDashboard = () => {
   });
 
   // tender list
-  const fetchTender = async () => {
-    const res = await api.get("/public/api/tender");
-    return res.data.data;
+  const fetchTender = async ({ queryKey }) => {
+    const [_key, page] = queryKey;
+
+    const res = await api.get(`/public/api/tender?page=${page}`);
+    return res.data;
   };
 
-  const {
-    data: tenderData = [],
-    isPending,
-    isError,
-  } = useQuery({
-    queryKey: ["tenderList"],
+  const { data, isPending, isError } = useQuery({
+    queryKey: ["tenderList", page],
     queryFn: fetchTender,
+    keepPreviousData: true,
   });
+
+  const tenderData = data?.data || [];
+  const pagination = data?.pagination || {};
 
   // tender cards
   const fetchCards = async () => {
@@ -169,7 +182,7 @@ const TenderDashboard = () => {
 
     const matchDepartment =
       appliedFilters.department === "All Departments" ||
-      t.department?.toLowerCase().trim() ===
+      t.department?.name?.toLowerCase().trim() ===
         appliedFilters.department.toLowerCase().trim();
 
     return matchSearch && matchStatus && matchDepartment;
@@ -190,8 +203,6 @@ const TenderDashboard = () => {
     const res = await api.delete(`/public/api/tender/${id}`);
     return res.data;
   };
-
-  const queryClient = useQueryClient();
 
   const { mutate: deleteMutate } = useMutation({
     mutationFn: deleteTender,
@@ -228,7 +239,7 @@ const TenderDashboard = () => {
   const { data: tenderDetails, isLoading } = useQuery({
     queryKey: ["tender-details", selectedId],
     queryFn: fetchTenderById,
-    enabled: !!selectedId && isModalOpen,
+    enabled: !!selectedId,
   });
 
   const timeline = tenderDetails?.timeline;
@@ -273,6 +284,76 @@ const TenderDashboard = () => {
     }
   };
 
+  // Common data formatter
+  const getExportData = () => {
+    return filteredTenders.map((t) => ({
+      "Tender ID": t.tender_id,
+      Title: t.title,
+      Department: t.department?.name,
+      Cost: t.estimated_cost,
+      Status: t.status,
+      "Closing Date": t.closing_date,
+      Bids: t.bid || 0,
+    }));
+  };
+
+  // CSV / Excel Export
+  const handleExcelExport = () => {
+    const data = getExportData();
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tenders");
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+    const file = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    saveAs(file, "tenders.xlsx");
+  };
+
+  // CSV Export
+  const handleCSVExport = () => {
+    const data = getExportData();
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const csv = XLSX.utils.sheet_to_csv(worksheet);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    saveAs(blob, "tenders.csv");
+  };
+
+  // Copy to Clipboard
+  const handleCopy = () => {
+    const data = getExportData();
+    const text = data.map((row) => Object.values(row).join("\t")).join("\n");
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard");
+  };
+
+  // PDF Export
+  const handlePDFExport = () => {
+    const doc = new jsPDF();
+    const data = getExportData();
+    const tableColumn = Object.keys(data[0]);
+    const tableRows = data.map((row) => Object.values(row));
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+    });
+    doc.save("tenders.pdf");
+  };
+
+  // Outside click close Dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsExportOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   if (isPending) return <p className="p-8 mt-10">Loading...</p>;
   if (isError)
     return <p className="p-8 text-red-500 mt-10">Error loading data</p>;
@@ -290,9 +371,59 @@ const TenderDashboard = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          <button className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all">
-            <Download size={18} /> Export
-          </button>
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setIsExportOpen((prev) => !prev)}
+              className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Download size={18} /> Export
+            </button>
+
+            {isExportOpen && (
+              <div className="absolute right-0 mt-2 bg-white shadow-lg rounded-lg w-40 z-50 border border-zinc-200">
+                <button
+                  onClick={() => {
+                    handleExcelExport();
+                    setIsExportOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                >
+                  Excel
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleCSVExport();
+                    setIsExportOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                >
+                  CSV
+                </button>
+
+                <button
+                  onClick={() => {
+                    handlePDFExport();
+                    setIsExportOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                >
+                  PDF
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleCopy();
+                    setIsExportOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                >
+                  Copy
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => router.push("/admin/tenders/create")}
             className="flex items-center gap-2 bg-[#2563eb] px-4 py-2 rounded-lg text-sm font-semibold text-white hover:bg-blue-700 transition-all shadow-sm cursor-pointer"
@@ -413,7 +544,7 @@ const TenderDashboard = () => {
       </div>
 
       {/* Tender Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-auto">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-auto p-5">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-100 border-b border-slate-100">
@@ -467,7 +598,7 @@ const TenderDashboard = () => {
                   <td className="p-4">
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <MapPin size={14} className="text-slate-400" />{" "}
-                      {t.department || "--"}
+                      {t.department?.name || "--"}
                     </div>
                   </td>
                   <td className="p-4 text-sm font-semibold text-slate-700">
@@ -501,7 +632,13 @@ const TenderDashboard = () => {
                       >
                         <Eye size={18} />
                       </button>
-                      <button className="hover:text-green-600 h-8 w-8 hover:bg-zinc-100 flex justify-center items-center rounded-lg cursor-pointer">
+                      <button
+                        onClick={() => {
+                          setSelectedId(t.id);
+                          setIsUpdateOpen(true);
+                        }}
+                        className="hover:text-green-600 h-8 w-8 hover:bg-zinc-100 flex justify-center items-center rounded-lg cursor-pointer"
+                      >
                         <PenIcon size={18} />
                       </button>
                       <button
@@ -517,6 +654,38 @@ const TenderDashboard = () => {
             )}
           </tbody>
         </table>
+
+        {pagination && (
+          <div className="flex justify-between items-center mt-6">
+            <div className="text-sm text-gray-600">
+              Showing {(page - 1) * pagination.per_page + 1} to{" "}
+              {Math.min(page * pagination.per_page, pagination.total)} of{" "}
+              {pagination.total} entries
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                disabled={page === 1 || isFetching}
+                onClick={() => setPage((prev) => prev - 1)}
+                className="px-3 py-1 border border-zinc-300 bg-blue-500 text-white hover:bg-white hover:text-blue-500 hover:border-blue-500 rounded disabled:opacity-50 cursor-pointer"
+              >
+                Prev
+              </button>
+
+              <span className="px-3 py-1">
+                Page {pagination.current_page} of {pagination.last_page}
+              </span>
+
+              <button
+                disabled={page === pagination.last_page || isFetching}
+                onClick={() => setPage((prev) => prev + 1)}
+                className="px-3 py-1 border border-zinc-300 bg-blue-500 text-white hover:bg-white hover:text-blue-500 hover:border-blue-500 rounded disabled:opacity-50 cursor-pointer"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* modal */}
@@ -573,10 +742,17 @@ const TenderDashboard = () => {
                     </div>
                   </div>
                   <div className="flex gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    {/* <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50">
                       <Download size={18} /> Download BOQ
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 shadow-md">
+                    </button> */}
+                    <button
+                      onClick={() => {
+                        setSelectedId(tenderDetails?.id);
+                        setIsUpdateOpen(true);
+                        setIsModalOpen(false);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 shadow-md"
+                    >
                       <Edit3 size={18} /> Edit Tender
                     </button>
                   </div>
@@ -716,7 +892,7 @@ const TenderDashboard = () => {
                                 Department
                               </span>
                               <span className="font-semibold text-right text-sm">
-                                {tenderDetails?.department || "N/A"}
+                                {tenderDetails?.department?.name || "N/A"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
@@ -724,9 +900,7 @@ const TenderDashboard = () => {
                                 Work Type
                               </span>
                               <span className="font-semibold text-right text-sm">
-                                {tenderDetails?.tender_id ||
-                                  tenderDetails?.tender_code ||
-                                  "-"}
+                                {tenderDetails?.workType?.workType || "-"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
@@ -947,6 +1121,15 @@ const TenderDashboard = () => {
           </div>
         </div>
       )}
+
+      <UpdateTenderModal
+        isOpen={isUpdateOpen}
+        onClose={() => {
+          setIsUpdateOpen(false);
+          setSelectedId(null);
+        }}
+        tenderDetails={tenderDetails}
+      />
     </div>
   );
 };

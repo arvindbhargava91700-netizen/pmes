@@ -13,47 +13,69 @@ import {
   Cross,
 } from "lucide-react";
 import AllRequest from "@/components/Admin/timeExtensions/AllRequest";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/components/Api/privetApi";
+
+const tabs = [
+  { id: "requests", label: "All Requests" },
+  { id: "pending", label: "Pending" },
+  { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" },
+];
 
 const TimeExtensions = () => {
   const [activeFilter, setActiveFilter] = useState("requests");
+  const [page, setPage] = useState(1);
+
+  const fetchEOT = async (page = 1) => {
+    const res = await api.get(`/public/api/master/eot_requests?page=${page}`);
+    return res.data.data;
+  };
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["eot-requests", page],
+    queryFn: () => fetchEOT(page),
+    refetchOnWindowFocus: false,
+  });
 
   const stats = [
     {
       label: "Total Requests",
-      value: 4,
+      value: data?.stats?.total_request || 0,
       icon: FileText,
       color: "bg-blue-50 text-blue-600",
       iconBg: "bg-blue-100",
     },
     {
       label: "Pending Review",
-      value: 2,
+      value: data?.stats?.pending || 0,
       icon: Clock,
       color: "bg-orange-50 text-orange-600",
       iconBg: "bg-orange-100",
     },
     {
       label: "Approved",
-      value: 1,
+      value: data?.stats?.approved || 0,
       icon: CheckCircle2,
       color: "bg-green-50 text-green-600",
       iconBg: "bg-green-100",
     },
     {
       label: "Rejected",
-      value: 1,
+      value: data?.stats?.reject || 0,
       icon: XCircle,
       color: "bg-red-50 text-red-600",
       iconBg: "bg-red-100",
     },
   ];
 
-  const tabs = [
-    { id: "requests", label: "All Requests" },
-    { id: "pending", label: "Pending" },
-    { id: "approved", label: "Approved" },
-    { id: "rejected", label: "Rejected" },
-  ];
+  if (isLoading) {
+    return <p className="p-6">Loading...</p>;
+  }
+
+  if (error) {
+    return <p className="p-6 text-red-500">Something went wrong</p>;
+  }
   return (
     <>
       <div className="p-6 mt-10">
@@ -135,9 +157,7 @@ const TimeExtensions = () => {
         </div>
 
         {activeFilter === "requests" && (
-          <>
-            <AllRequest />
-          </>
+          <AllRequest />
         )}
 
         {activeFilter === "pending" && (
